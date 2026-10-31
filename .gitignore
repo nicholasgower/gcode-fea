@@ -1,6 +1,7 @@
 out/
 *.log
 00000.log
+result.json
 __pycache__/
 *.py[cod]
 .pytest_cache/
