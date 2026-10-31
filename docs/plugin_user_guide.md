@@ -101,6 +101,7 @@ JSON. Defaults:
   "step_engine": "auto",
   "step_tolerance": 0.0,
   "max_step_faces": 150000,
+  "max_step_triangles": 60000,
   "roi": null,
   "layer_range": null,
   "formats": ["sidecar", "report"],
@@ -122,9 +123,10 @@ JSON. Defaults:
 | `c_h`, `c_v` | octagon contact fractions (paper modes) |
 | `resolution` | contact grid and voxel resolution (mm); 0.05–0.2 is practical |
 | `step_stride` | keep every Nth profile point in STEP; 1 = full |
-| `step_engine` | `auto`, `gmsh`, or `planar`; `auto` uses gmsh if importable, otherwise the built-in writer |
+| `step_engine` | `merged`, `planar`, `gmsh`, or `auto`; `merged` boolean-unions overlapping beads |
 | `step_tolerance` | simplify curved profile sections within this chord tolerance (mm); 0 keeps every point |
-| `max_step_faces` | preflight limit that stops an oversized STEP export |
+| `max_step_faces` | planar-engine face preflight limit |
+| `max_step_triangles` | merged-engine triangle preflight limit |
 | `roi` | `[xmin, ymin, zmin, xmax, ymax, zmax]` or `null` |
 | `layer_range` | `[first, last]` or `null` |
 | `formats` | subset of `["sidecar", "report"]` |
@@ -143,9 +145,10 @@ The capture capability has its own config: `mode`, `c_h`, `c_v`,
 ```json
 {
   "step_stride": 1,
-  "step_engine": "planar",
+  "step_engine": "merged",
   "step_tolerance": 0.005,
   "max_step_faces": 150000,
+  "max_step_triangles": 60000,
   "roi": null,
   "layer_range": null,
   "core_path": "",
@@ -153,14 +156,14 @@ The capture capability has its own config: `mode`, `c_h`, `c_v`,
   "output_dir": "",
   "save_path": "",
   "ask_save_path": true,
-  "trim_overlaps": true
+  "trim_overlaps": false
 }
 ```
 
 It writes `beads.step` where you choose, or in `exports/` when the dialog is
-disabled. Defaults use the built-in planar writer, stride 1, a 0.005 mm chord
-tolerance for curved sections, and the 150k-face preflight. Set `roi` or `layer_range` to keep a large part
-small; raise `max_step_faces` only if you accept the file size.
+disabled. Defaults use the merged writer, stride 1, a 0.005 mm chord tolerance,
+and a 60k-triangle preflight. Set `roi` or `layer_range` to keep a large part
+small; raise `max_step_triangles` only if you accept the file size.
 
 ## Cache management and staleness
 
@@ -171,45 +174,43 @@ small; raise `max_step_faces` only if you accept the file size.
 - `max_layers` caps large slices; the cache meta records `truncated`.
 - The cache schema is shared with the CLI (`gcode-fea --cache ...`).
 
-## STEP viewing
+## STEP viewing and merged bodies
 
-`write_step: true` now works without gmsh. The built-in `planar` engine writes
-an AP214 `MANIFOLD_SOLID_BREP` with **one closed solid per bead**: rings at
-path vertices are shared, so the internal caps and overlapping segment prisms
-of the first implementation are gone. OCCT, FreeCAD, PrePoMax, and other STEP
-viewers open the result. Separate beads remain separate bodies (one body per
-bead) so bead/interface identity is not lost; overlapping *segments inside a
-bead* are merged into its body.
+`write_step: true` works without gmsh. The default **merged** engine builds the
+bead solids, boolean-unions them with Manifold3D, and writes one AP214
+`MANIFOLD_SOLID_BREP` per connected result. Overlapping beads — infill into a
+wall, adjacent strokes, stacked layers — become one body instead of
+interpenetrating solids. This is a true union, not clipping.
 
-Curved profile sections can be simplified with `step_tolerance` (maximum chord
-deviation in mm). Measured on the Phase 0 probe (3 beads):
+The alternative **planar** engine writes one stitched body per bead without
+merging across beads. It is smaller and preserves individual bead identity, but
+overlaps remain visible. `gmsh` uses OCCT; `auto` selects gmsh if importable,
+otherwise planar.
 
-| Setting | Solids | Faces | File size | Volume error |
-|---|---:|---:|---:|---:|
-| stride 1, no tolerance | 3 | 3,052 | 2.9 MB | 0.05% |
-| stride 2, no tolerance | 3 | 1,527 | 1.4 MB | 2.0% |
-| stride 1, tolerance 0.005 | 3 | 734 | 0.67 MB | 1.3% |
-| stride 1, tolerance 0.002 | 3 | 1,296 | — | 0.4% |
+Measured:
 
-The 20 mm cube (390 beads) has about 427k faces with no simplification,
-103k faces at tolerance 0.005, and 77k at tolerance 0.01. Use `roi` and/or
-`layer_range` for large parts; the plugin refuses exports above
-`max_step_faces` (default 150,000). For the highest-quality analytic B-rep,
-install gmsh and set `step_engine: "gmsh"`; `auto` picks it when available.
+| Case | Engine | Solids | Triangles/faces | File | Volume error |
+|---|---|---:|---:|---:|---:|
+| Phase 0 probe, 3 beads | merged | 1 | 3,040 | 2.35 MB | 8.1% (overlap counted once) |
+| 20 mm cube, layer 0, 3 beads | merged | 1 | 6,506 | 5.1 MB | 3.5% |
+| Phase 0 probe, 3 beads | planar | 3 | 3,052 | 2.9 MB | 0.05% |
 
-### Trimming stroke overlaps
+The merged volume error is expected: overlapping volume is now counted once, so
+the result is below the sum of bead volumes. The reported value compares against
+that sum.
 
-Slicers over-extrude where infill meets a wall, so the infill centerline can
-end inside the wall footprint and the bead cuts through the wall's side face.
-With `trim_overlaps: true`, the plugin buffers the wall centerlines in each
-layer and clips non-wall paths against that footprint, stopping them at the
-wall surface plus half the infill width. A multi-pass serpentine is split into
-separate beads rather than losing passes.
+Curved sections are simplified with `step_tolerance` (maximum chord deviation
+in mm) before union. Full parts get large; the merged engine refuses more than
+`max_step_triangles` (default 60,000), and the planar engine refuses more than
+`max_step_faces` (default 150,000). Use `roi` and/or `layer_range` for STEP
+exports. For an analytic B-rep without union, install gmsh and set
+`step_engine: "gmsh"`.
 
-This removes the interpenetration but keeps beads as separate bodies; it is not
-a boolean union. It changes the deposited volume (and the report/sidecar records
-the change), so it is **on by default only for the STEP viewing export** and
-off for the FEA export. It requires Shapely, which the plugin wheel installs.
+### Optional clipping (legacy)
+
+`trim_overlaps` clips infill paths at wall footprints instead of unioning them.
+It is off by default; it was an earlier workaround and leaves separate bodies.
+Use `step_engine: "merged"` for actual merging.
 
 ## Choosing the save location
 

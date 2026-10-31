@@ -237,7 +237,7 @@ The 2.5 build is the only plugin target (`src/slic3r/plugin` is absent at `v2.4.
 
 **Deliverables**
 
-- Script capabilities: "Export FEA Geometry" (sidecar/report/STL/STEP) and "Export STEP (viewable)" (cache-only STEP), both with progress, cancel, and native save/folder dialogs. **Done.** STEP works without gmsh via the planar B-rep writer; overlapping segments are stitched into one body per bead, `step_tolerance` reduces curved-surface polygons, and `trim_overlaps` clips infill-wall interpenetration.
+- Script capabilities: "Export FEA Geometry" (sidecar/report/STL/STEP) and "Export STEP (viewable)" (cache-only STEP), both with progress, cancel, and native save/folder dialogs. **Done.** STEP works without gmsh via the planar B-rep writer; overlapping segments are stitched into one body per bead, `step_tolerance` reduces curved-surface polygons, and `step_engine=merged` boolean-unions overlapping beads into merged bodies (Manifold3D); `trim_overlaps` is an optional clipping fallback.
 - Pages tab (optional): slice status, export history, report viewer. **Not done**; plugin storage and the report JSON cover status.
 - Config: defaults, ROI, modes, output formats, solver. **Done**; solver choice is covered by the benchmark/cohesive CLIs, not the plugin.
 - Cache management and stale-slice detection. **Done** via `slice_hash` and `source_hash`.
