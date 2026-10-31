@@ -29,7 +29,7 @@ class PlanarStepTests(unittest.TestCase):
             path = Path(tmp) / "beads.step"
             result = write_step_planar(self.model, path, profile_stride=1)
             self.assertEqual(result["engine"], "planar")
-            self.assertEqual(result["solids"], 61)
+            self.assertEqual(result["solids"], 3)
             self.assertGreater(result["faces"], 0)
             self.assertLess(result["volume_relative_error"], 0.01)
             self.assertAlmostEqual(
@@ -58,6 +58,37 @@ class PlanarStepTests(unittest.TestCase):
             self.assertTrue(referenced)
             self.assertEqual(referenced - defined, set())
 
+    def test_one_body_per_bead(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            result = write_step_planar(
+                self.model, Path(tmp) / "beads.step", profile_stride=1
+            )
+            self.assertEqual(result["solids"], len(self.model.beads))
+
+    def test_tolerance_reduces_curved_polygons(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            full = write_step_planar(
+                self.model, Path(tmp) / "full.step", profile_stride=1
+            )
+            reduced = write_step_planar(
+                self.model,
+                Path(tmp) / "reduced.step",
+                profile_stride=1,
+                tolerance=0.005,
+            )
+            self.assertLess(reduced["faces"], full["faces"] / 2)
+            self.assertLess(reduced["volume_relative_error"], 0.02)
+
+    def test_simplify_profile(self) -> None:
+        from gcode_fea.step_planar import simplify_profile
+
+        profile = list(self.model.beads[0].cross_section.profile)
+        simplified = simplify_profile(profile, 0.005)
+        self.assertGreaterEqual(len(simplified), 3)
+        self.assertLess(len(simplified), len(profile))
+        self.assertEqual(simplified[0], profile[0])
+        self.assertEqual(simplify_profile(profile, 0.0), profile)
+
     def test_stride_reduces_detail(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             full = write_step_planar(
@@ -81,7 +112,7 @@ class PlanarStepTests(unittest.TestCase):
                     profile_stride=stride,
                 )
                 self.assertEqual(
-                    estimate_faces(self.model, stride), result["faces"]
+                    estimate_faces(self.model, stride, 0.0), result["faces"]
                 )
 
     def test_export_engine_selection(self) -> None:
@@ -92,7 +123,7 @@ class PlanarStepTests(unittest.TestCase):
                 step_engine="planar",
             )
             self.assertEqual(result["engine"], "planar")
-            self.assertEqual(result["segment_prisms"], 61)
+            self.assertEqual(result["segment_prisms"], 3)
             self.assertIn("bbox", result)
 
     def test_auto_engine(self) -> None:
