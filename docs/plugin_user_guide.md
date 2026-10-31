@@ -199,6 +199,13 @@ The merged volume error is expected: overlapping volume is now counted once, so
 the result is below the sum of bead volumes. The reported value compares against
 that sum.
 
+The union uses the convex per-segment prisms, not the stitched/mitred bead
+shells: sharp closed-loop corners can make a stitched bead self-intersect, and
+Manifold then splits it into fragments. Segment prisms are individually valid;
+the boolean removes their overlaps. Verified with SolidCraft’s interference
+tool on a 5-layer 20 mm cube: one closed body and **0 interferences** (the
+earlier mitred version produced 7 bodies with 4 overlapping fragments).
+
 Curved sections are simplified with `step_tolerance` (maximum chord deviation
 in mm) before union. Full parts get large; the merged engine refuses more than
 `max_step_triangles` (default 60,000), and the planar engine refuses more than
@@ -330,7 +337,8 @@ Logs: `~/.config/OrcaSlicer/log/python_*.log` (tracebacks) and
 | Planar STEP from the plugin | Pass (unit test; no gmsh needed) |
 | “Export STEP (viewable)” capability | Pass (unit test; writes `beads.step`) |
 | Native save/folder dialog integration | Unit-tested for zenity, kdialog, osascript, PowerShell; live zenity not exercised in this session |
-| Wall-overlap trimming | Pass (synthetic wall/infill, Phase 0 probe: 27 split pieces, −10.8% volume) |
+| Wall-overlap trimming | Optional fallback; not used by the merged engine |
+| SolidCraft interference, 5-layer cube | Pass: 1 closed body, 0 interferences |
 | Export to an arbitrary folder via staged copy | Pass (unit tests; copy helper uses a constant command) |
 | `psGCodePostProcess` capture | Not dispatched in this build; explicit `gcode_path` used instead |
 | End-to-end on Windows/macOS | Not tested |
