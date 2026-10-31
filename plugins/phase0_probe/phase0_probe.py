@@ -20,6 +20,7 @@ import numpy as np
 import orca
 
 PROBE_VERSION = 1
+MAX_LAYERS = 200
 
 
 class Phase0Probe(orca.slicing.SlicingPipelineCapabilityBase):
@@ -35,33 +36,63 @@ class Phase0Probe(orca.slicing.SlicingPipelineCapabilityBase):
             print("phase0_probe: no object at posSimplifyPath", file=sys.stderr)
             return orca.ExecutionResult.success()
 
-        for layer in obj.layers():
+        storage = Path(str(orca.host.plugin.storage()))
+        layers = []
+        truncated = False
+        for layer_index, layer in enumerate(obj.layers()):
             paths = _collect_paths(layer)
             if not paths:
                 continue
-
-            data = {
-                "probe_version": PROBE_VERSION,
-                "orcaslicer_version": ctx.orca_version,
-                "object_id": obj.id(),
-                "layer_print_z": layer.print_z,
-                "layer_slice_z": layer.slice_z,
-                "layer_height": layer.height,
-                "path_count": len(paths),
-                "paths": paths,
-            }
-            storage = Path(str(orca.host.plugin.storage()))
-            out = storage / f"phase0_probe_obj{obj.id()}.json"
-            out.write_text(json.dumps(data, indent=2))
-            print(
-                f"phase0_probe: wrote {out} ({len(paths)} paths, "
-                f"layer z={layer.print_z:.3f})",
-                file=sys.stderr,
+            layers.append(
+                {
+                    "layer_index": layer_index,
+                    "print_z": layer.print_z,
+                    "slice_z": layer.slice_z,
+                    "height": layer.height,
+                    "path_count": len(paths),
+                    "paths": paths,
+                }
             )
-            return orca.ExecutionResult.success(f"phase0 probe wrote {out}")
+            if len(layers) >= MAX_LAYERS:
+                truncated = True
+                break
 
-        print("phase0_probe: no extrusion paths found", file=sys.stderr)
-        return orca.ExecutionResult.success()
+        if not layers:
+            print("phase0_probe: no extrusion paths found", file=sys.stderr)
+            return orca.ExecutionResult.success()
+
+        first = layers[0]
+        phase0 = {
+            "probe_version": PROBE_VERSION,
+            "orcaslicer_version": ctx.orca_version,
+            "object_id": obj.id(),
+            "layer_print_z": first["print_z"],
+            "layer_slice_z": first["slice_z"],
+            "layer_height": first["height"],
+            "path_count": first["path_count"],
+            "paths": first["paths"],
+        }
+        phase0_path = storage / f"phase0_probe_obj{obj.id()}.json"
+        phase0_path.write_text(json.dumps(phase0, indent=2))
+
+        phase1 = {
+            "probe_version": PROBE_VERSION + 1,
+            "orcaslicer_version": ctx.orca_version,
+            "object_id": obj.id(),
+            "layer_count": len(layers),
+            "truncated": truncated,
+            "layers": layers,
+        }
+        out = storage / f"phase1_probe_obj{obj.id()}.json"
+        out.write_text(json.dumps(phase1, indent=2))
+        print(
+            f"phase0_probe: wrote {phase0_path} and {out} "
+            f"({len(layers)} layers, truncated={truncated})",
+            file=sys.stderr,
+        )
+        return orca.ExecutionResult.success(
+            f"phase1 probe wrote {out} ({len(layers)} layers)"
+        )
 
 
 def _collect_paths(layer) -> list[dict]:
