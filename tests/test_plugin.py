@@ -233,7 +233,9 @@ class PluginTests(unittest.TestCase):
         self.assertEqual(len(self.orca.permission_requests), 1)
         request = self.orca.permission_requests[0]
         self.assertIsInstance(request["process"], list)
-        self.assertTrue(all(path for path in request["process"]))
+        self.assertTrue(request["process"])
+        self.assertTrue(any("zenity" in target for target in request["process"]))
+        self.assertTrue(any("sh" in target for target in request["process"]))
 
     def test_default_configs(self) -> None:
         capture = self.plugin.CaptureSliceCache().get_default_config()

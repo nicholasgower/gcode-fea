@@ -54,6 +54,12 @@ class TransferTests(unittest.TestCase):
             self.assertEqual(env["ORCA_FEA_SRC"], str(source))
             self.assertEqual(env["ORCA_FEA_DST"], str(destination))
 
+    def test_process_commands_are_declared(self) -> None:
+        commands = transfer.process_commands()
+        self.assertEqual(len(commands), 2)
+        self.assertEqual(commands[0][0], "sh" if not sys.platform.startswith("win") else "cmd")
+        self.assertTrue(all(command for command in commands))
+
     def test_copy_failure_raises(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             source = Path(tmp) / "missing.step"

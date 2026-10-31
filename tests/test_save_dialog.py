@@ -98,6 +98,17 @@ class SaveDialogTests(unittest.TestCase):
         command = run.call_args.args[0]
         self.assertIn("--directory", command)
 
+    def test_process_commands_are_declared(self) -> None:
+        with mock.patch.object(save_dialog.sys, "platform", "linux"), mock.patch.object(
+            save_dialog.shutil, "which", side_effect=lambda name: "/usr/bin/zenity"
+        ):
+            commands = save_dialog.process_commands()
+        self.assertEqual(len(commands), 2)
+        text = " ".join(" ".join(command) for command in commands)
+        self.assertIn("--save", text)
+        self.assertIn("--directory", text)
+        self.assertIn("Save STEP file", text)
+
     def test_macos(self) -> None:
         with mock.patch.object(save_dialog.sys, "platform", "darwin"), mock.patch.object(
             save_dialog.shutil, "which", side_effect=lambda name: "/usr/bin/osascript"
