@@ -33,6 +33,8 @@ Initial release.
 - Read-only helpers for STEP auditing/budgeting and plugin permission checks.
 - A release helper that builds the plugin wheel and publishes it to GitHub
   Releases from the matching changelog entry.
+- A nightly GitHub Actions workflow that runs the unit tests on every push to
+  `main` and, when they pass, updates a rolling prerelease wheel.
 - Documentation, test fixtures, and SolidCraft screenshots of exported STEP
   files.
 

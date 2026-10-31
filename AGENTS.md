@@ -578,7 +578,9 @@ authenticated `gh` CLI. It runs the full test suite with the optional extras,
 builds the wheel, creates or reuses the `v<version>` tag at the current commit,
 uploads the wheel, and uses the matching changelog section as the release notes.
 Use `--draft`, `--prerelease`, `--skip-tests`, `--notes-file`, `--tag`, or
-`--repo` when needed.
+`--repo` when needed. The `.github/workflows/nightly.yml` workflow does the
+same for a rolling `nightly` prerelease after every push to `main`, once the
+unit tests pass.
 
 Planned: Pages tab, G-code input fallback, fused STEP, multi-material and
 support data.
