@@ -160,6 +160,7 @@ class ExportFEAGeometry(orca.script.ScriptPluginCapabilityBase):
             "resolution": 0.1,
             "step_stride": 1,
             "step_engine": "auto",
+            "step_tolerance": 0.0,
             "max_step_faces": 150000,
             "roi": None,
             "layer_range": None,
@@ -272,8 +273,9 @@ class ExportSTEPViewable(orca.script.ScriptPluginCapabilityBase):
 
     def get_default_config(self) -> dict:
         return {
-            "step_stride": 2,
+            "step_stride": 1,
             "step_engine": "planar",
+            "step_tolerance": 0.005,
             "max_step_faces": 150000,
             "roi": None,
             "layer_range": None,

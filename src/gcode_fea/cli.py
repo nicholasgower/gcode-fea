@@ -68,6 +68,12 @@ def build_parser() -> argparse.ArgumentParser:
         default="auto",
         help="STEP writer: gmsh, pure-Python planar, or auto (default auto)",
     )
+    parser.add_argument(
+        "--step-tolerance",
+        type=float,
+        default=0.0,
+        help="simplify curved profile sections within this many mm (0 = off)",
+    )
     parser.add_argument("--sidecar", type=Path, help="sidecar path (default: <out>/beads.json)")
     parser.add_argument("--report", type=Path, help="report path (default: <out>/report.json)")
     return parser
@@ -142,6 +148,7 @@ def main(argv: list[str] | None = None) -> int:
                 verify=True,
                 profile_stride=args.step_stride,
                 step_engine=args.step_engine,
+                step_tolerance=args.step_tolerance,
             )
         except (RuntimeError, OSError, ValueError) as exc:
             print(f"error: STEP export failed: {exc}", file=sys.stderr)

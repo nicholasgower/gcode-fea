@@ -46,24 +46,26 @@ def export_step(
     verify: bool = True,
     profile_stride: int = 1,
     step_engine: str = "auto",
+    step_tolerance: float = 0.0,
 ) -> dict:
-    """Export each bead as a compound of straight-segment prisms.
+    """Export beads as STEP solids.
 
     Engines:
 
-    - ``gmsh``: OCCT B-rep behind gmsh (optional GPL dependency),
-    - ``planar``: pure-Python AP214 solids with planar faces (no extra deps),
+    - ``gmsh``: OCCT B-rep behind gmsh, one solid per segment prism,
+    - ``planar``: pure-Python AP214, one stitched solid per bead,
     - ``auto``: gmsh when importable, otherwise planar.
 
-    Both engines keep the compound as one solid per segment prism so the volume
-    sum remains explicit.
+    ``step_tolerance`` simplifies curved profile sections in both engines.
     """
 
     if step_engine not in ("auto", "gmsh", "planar"):
         raise ValueError("step_engine must be 'auto', 'gmsh', or 'planar'")
     target = Path(path)
     if step_engine == "planar":
-        return _export_step_planar(model, target, profile_stride)
+        return _export_step_planar(
+            model, target, profile_stride, step_tolerance
+        )
     try:
         import gmsh
     except ImportError:
@@ -72,7 +74,9 @@ def export_step(
                 "gmsh is required for the gmsh STEP engine; use "
                 "`--step-engine planar` or `uv run --with gmsh ...`"
             )
-        return _export_step_planar(model, target, profile_stride)
+        return _export_step_planar(
+            model, target, profile_stride, step_tolerance
+        )
 
     target.parent.mkdir(parents=True, exist_ok=True)
     if not model.beads:
@@ -84,9 +88,16 @@ def export_step(
     volumes: list[tuple[int, int]] = []
     segment_count = 0
     for bead in model.sorted_beads():
-        profile = np.asarray(bead.cross_section.profile, dtype=float)
-        if profile_stride > 1 and len(profile) >= 16:
-            profile = profile[::profile_stride]
+        points = list(bead.cross_section.profile)
+        if step_tolerance > 0:
+            from .step_planar import simplify_profile
+
+            points = simplify_profile(points, step_tolerance)
+        if profile_stride > 1:
+            points = points[::profile_stride]
+        if len(points) < 3:
+            continue
+        profile = np.asarray(points, dtype=float)
         for start, end in _segments(bead):
             p0 = np.asarray(start, dtype=float)
             p1 = np.asarray(end, dtype=float)
@@ -131,6 +142,7 @@ def _export_step_planar(
     model: SliceModel,
     target: Path,
     profile_stride: int,
+    tolerance: float = 0.0,
 ) -> dict:
     from .step_planar import write_step_planar
 
@@ -138,6 +150,7 @@ def _export_step_planar(
         model,
         target,
         profile_stride=profile_stride,
+        tolerance=tolerance,
     )
     result["segment_prisms"] = result["solids"]
     result["bbox"] = list(model.bbox())

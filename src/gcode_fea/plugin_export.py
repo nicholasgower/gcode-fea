@@ -117,12 +117,14 @@ def export_from_cache(
     if config.write_step:
         from .step_planar import estimate_faces
 
-        estimated = estimate_faces(model, config.step_stride)
+        estimated = estimate_faces(
+            model, config.step_stride, config.step_tolerance
+        )
         if estimated > config.max_step_faces:
             raise ValueError(
                 f"STEP preflight: about {estimated:,} planar faces exceeds the "
                 f"limit of {config.max_step_faces:,}. Use an ROI, a layer range, "
-                "a larger step_stride, or raise max_step_faces."
+                "a larger step_stride or step_tolerance, or raise max_step_faces."
             )
         _report(progress, 0.8, "Writing STEP (this can take a while)")
         step = export_step(
@@ -131,6 +133,7 @@ def export_from_cache(
             verify=True,
             profile_stride=config.step_stride,
             step_engine=config.step_engine,
+            step_tolerance=config.step_tolerance,
         )
         files["step"] = step["path"]
 
@@ -186,12 +189,14 @@ def export_step_from_cache(
 
     from .step_planar import estimate_faces
 
-    estimated = estimate_faces(model, config.step_stride)
+    estimated = estimate_faces(
+        model, config.step_stride, config.step_tolerance
+    )
     if estimated > config.max_step_faces:
         raise ValueError(
             f"STEP preflight: about {estimated:,} planar faces exceeds the "
             f"limit of {config.max_step_faces:,}. Use an ROI, a layer range, "
-            "a larger step_stride, or raise max_step_faces."
+            "a larger step_stride or step_tolerance, or raise max_step_faces."
         )
     _report(progress, 0.3, f"Writing {estimated:,} planar faces")
     result = export_step(
@@ -200,6 +205,7 @@ def export_step_from_cache(
         verify=True,
         profile_stride=config.step_stride,
         step_engine=config.step_engine,
+        step_tolerance=config.step_tolerance,
     )
     _report(progress, 1.0, "Done")
     return {
@@ -209,7 +215,9 @@ def export_step_from_cache(
         "layer_count": len(model.layers()),
         "engine": result.get("engine"),
         "solids": result.get("solids", result.get("segment_prisms")),
-        "faces": estimate_faces(model, config.step_stride),
+        "faces": estimate_faces(
+            model, config.step_stride, config.step_tolerance
+        ),
         "bytes": target.stat().st_size,
         "volume": result.get("volume"),
         "volume_relative_error": result.get("volume_relative_error"),
