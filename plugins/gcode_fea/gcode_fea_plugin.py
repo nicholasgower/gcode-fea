@@ -424,12 +424,16 @@ def _process_roots() -> list[str]:
 
     import shutil
 
-    roots = []
+    roots = set()
     for name in ("zenity", "kdialog", "osascript", "powershell", "sh", "cmd"):
         path = shutil.which(name)
         if path:
-            roots.append(path)
-    return roots
+            roots.add(path)
+    if _core_transfer is not None:
+        roots.update(str(command) for command in _core_transfer.process_commands())
+    if _core_dialog is not None:
+        roots.update(str(command) for command in _core_dialog.process_commands())
+    return sorted(roots)
 
 
 def _collect_paths(layer) -> list[dict]:

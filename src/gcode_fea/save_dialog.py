@@ -35,21 +35,19 @@ class DialogResult:
         return self.backend not in ("none", "error")
 
 
-def choose_save_file(
-    default_path: str | Path,
-    title: str = "Save file",
-    filter_name: str = "STEP files",
-    patterns: tuple[str, ...] = ("*.step", "*.stp"),
-    timeout: float | None = None,
-) -> DialogResult:
-    """Show a native Save As dialog and return the chosen path."""
+SAVE_TITLE = "Save STEP file"
+FILTER_NAME = "STEP files"
+PATTERNS = ("*.step", "*.stp")
+DIRECTORY_TITLE = "Choose the FEA export folder"
 
-    target = Path(default_path)
-    suffix = Path(patterns[0]).suffix if patterns else ""
-    backend = _backend()
-    if backend == "none":
-        return DialogResult(None, False, "none", "no native dialog helper found")
 
+def _save_command(
+    target: Path,
+    title: str,
+    filter_name: str,
+    patterns: tuple[str, ...],
+    backend: str,
+) -> list[str]:
     if backend == "zenity":
         command = [
             "zenity",
@@ -65,10 +63,9 @@ def choose_save_file(
             command.extend(
                 ["--file-filter", f"{filter_name} | {' '.join(patterns)}"]
             )
-        return _run(command, backend, suffix, timeout, cwd=target.parent)
-
+        return command
     if backend == "kdialog":
-        command = [
+        return [
             "kdialog",
             "--getsavefilename",
             ".",
@@ -76,37 +73,82 @@ def choose_save_file(
             "--title",
             title,
         ]
-        return _run(command, backend, suffix, timeout, cwd=target.parent)
-
     if backend == "macos":
         script = (
             "POSIX path of (choose file name with prompt "
             f'"{_applescript(title)}" default name "{_applescript(target.name)}")'
         )
-        return _run(
-            ["osascript", "-e", script],
-            backend,
-            suffix,
-            timeout,
-            cwd=target.parent,
-        )
-
+        return ["osascript", "-e", script]
     if backend == "windows":
         script = _powershell_save_script(title, filter_name, patterns)
+        return ["powershell", "-NoProfile", "-STA", "-Command", script]
+    return []
+
+
+def _directory_command(
+    target: Path,
+    title: str,
+    backend: str,
+) -> list[str]:
+    if backend == "zenity":
+        return ["zenity", "--file-selection", "--directory", "--title", title]
+    if backend == "kdialog":
+        return ["kdialog", "--getexistingdirectory", ".", "--title", title]
+    if backend == "macos":
+        script = (
+            "POSIX path of (choose folder with prompt "
+            f'"{_applescript(title)}")'
+        )
+        return ["osascript", "-e", script]
+    if backend == "windows":
+        script = _powershell_folder_script(title)
+        return ["powershell", "-NoProfile", "-STA", "-Command", script]
+    return []
+
+
+def process_commands() -> list[list[str]]:
+    """Exact commands the plugin may spawn, for declarative permission."""
+
+    backend = _backend()
+    if backend == "none":
+        return []
+    target = Path("beads.step")
+    return [
+        _save_command(target, SAVE_TITLE, FILTER_NAME, PATTERNS, backend),
+        _directory_command(target, DIRECTORY_TITLE, backend),
+    ]
+
+
+def choose_save_file(
+    default_path: str | Path,
+    title: str = "Save file",
+    filter_name: str = "STEP files",
+    patterns: tuple[str, ...] = ("*.step", "*.stp"),
+    timeout: float | None = None,
+) -> DialogResult:
+    """Show a native Save As dialog and return the chosen path."""
+
+    target = Path(default_path)
+    suffix = Path(patterns[0]).suffix if patterns else ""
+    backend = _backend()
+    if backend == "none":
+        return DialogResult(None, False, "none", "no native dialog helper found")
+
+    command = _save_command(target, title, filter_name, patterns, backend)
+    env = None
+    if backend == "windows":
         env = {
             "ORCA_FEA_DIR": str(target.parent),
             "ORCA_FEA_NAME": target.name,
         }
-        return _run(
-            ["powershell", "-NoProfile", "-STA", "-Command", script],
-            backend,
-            suffix,
-            timeout,
-            cwd=target.parent,
-            env=env,
-        )
-
-    return DialogResult(None, False, "error", f"unknown backend: {backend}")
+    return _run(
+        command,
+        backend,
+        suffix,
+        timeout,
+        cwd=target.parent,
+        env=env,
+    )
 
 
 def choose_directory(
@@ -123,52 +165,16 @@ def choose_directory(
     if backend == "none":
         return DialogResult(None, False, "none", "no native dialog helper found")
 
-    if backend == "zenity":
-        command = [
-            "zenity",
-            "--file-selection",
-            "--directory",
-            "--title",
-            title,
-        ]
-        return _run(command, backend, "", timeout, cwd=target)
-
-    if backend == "kdialog":
-        command = [
-            "kdialog",
-            "--getexistingdirectory",
-            ".",
-            "--title",
-            title,
-        ]
-        return _run(command, backend, "", timeout, cwd=target)
-
-    if backend == "macos":
-        script = (
-            "POSIX path of (choose folder with prompt "
-            f'"{_applescript(title)}")'
-        )
-        return _run(
-            ["osascript", "-e", script],
-            backend,
-            "",
-            timeout,
-            cwd=target,
-        )
-
-    if backend == "windows":
-        script = _powershell_folder_script(title)
-        env = {"ORCA_FEA_DIR": str(target)}
-        return _run(
-            ["powershell", "-NoProfile", "-STA", "-Command", script],
-            backend,
-            "",
-            timeout,
-            cwd=target,
-            env=env,
-        )
-
-    return DialogResult(None, False, "error", f"unknown backend: {backend}")
+    command = _directory_command(target, title, backend)
+    env = {"ORCA_FEA_DIR": str(target)} if backend == "windows" else None
+    return _run(
+        command,
+        backend,
+        "",
+        timeout,
+        cwd=target,
+        env=env,
+    )
 
 
 def _backend() -> str:

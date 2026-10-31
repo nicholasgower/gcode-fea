@@ -41,17 +41,32 @@ def _copy(source: Path, destination: Path, directory: bool) -> None:
     _copy_posix(source, destination, directory)
 
 
+def copy_file_command() -> list[str]:
+    return ["sh", "-c", COPY_FILE_SCRIPT]
+
+
+def copy_directory_command() -> list[str]:
+    return ["sh", "-c", COPY_DIRECTORY_SCRIPT]
+
+
+def process_commands() -> list[list[str]]:
+    """Exact command strings to declare for the audit hook."""
+
+    if sys.platform.startswith("win"):
+        return [_windows_file_command(), _windows_directory_command()]
+    return [copy_file_command(), copy_directory_command()]
+
+
+COPY_FILE_SCRIPT = (
+    'mkdir -p "$ORCA_FEA_DSTDIR" && cp -- "$ORCA_FEA_SRC" "$ORCA_FEA_DST"'
+)
+COPY_DIRECTORY_SCRIPT = (
+    'mkdir -p "$ORCA_FEA_DSTDIR" && cp -R -- "$ORCA_FEA_SRC/." "$ORCA_FEA_DST/"'
+)
+
+
 def _copy_posix(source: Path, destination: Path, directory: bool) -> None:
-    if directory:
-        script = (
-            'mkdir -p "$ORCA_FEA_DSTDIR" && '
-            'cp -R -- "$ORCA_FEA_SRC/." "$ORCA_FEA_DST/"'
-        )
-    else:
-        script = (
-            'mkdir -p "$ORCA_FEA_DSTDIR" && '
-            'cp -- "$ORCA_FEA_SRC" "$ORCA_FEA_DST"'
-        )
+    script = COPY_DIRECTORY_SCRIPT if directory else COPY_FILE_SCRIPT
     env = os.environ.copy()
     env["ORCA_FEA_SRC"] = str(source)
     env["ORCA_FEA_DST"] = str(destination)
@@ -68,17 +83,32 @@ def _copy_windows(source: Path, destination: Path, directory: bool) -> None:
     env["ORCA_FEA_DSTDIR"] = str(
         destination if directory else destination.parent
     )
-    if directory:
-        script = (
-            'if not exist "%ORCA_FEA_DSTDIR%" mkdir "%ORCA_FEA_DSTDIR%" && '
-            'xcopy /Y /E /I "%ORCA_FEA_SRC%" "%ORCA_FEA_DST%"'
-        )
-    else:
-        script = (
-            'if not exist "%ORCA_FEA_DSTDIR%" mkdir "%ORCA_FEA_DSTDIR%" && '
-            'copy /Y "%ORCA_FEA_SRC%" "%ORCA_FEA_DST%"'
-        )
+    script = (
+        _windows_directory_script() if directory else _windows_file_script()
+    )
     _run(["cmd", "/c", script], env)
+
+
+def _windows_file_script() -> str:
+    return (
+        'if not exist "%ORCA_FEA_DSTDIR%" mkdir "%ORCA_FEA_DSTDIR%" && '
+        'copy /Y "%ORCA_FEA_SRC%" "%ORCA_FEA_DST%"'
+    )
+
+
+def _windows_directory_script() -> str:
+    return (
+        'if not exist "%ORCA_FEA_DSTDIR%" mkdir "%ORCA_FEA_DSTDIR%" && '
+        'xcopy /Y /E /I "%ORCA_FEA_SRC%" "%ORCA_FEA_DST%"'
+    )
+
+
+def _windows_file_command() -> list[str]:
+    return ["cmd", "/c", _windows_file_script()]
+
+
+def _windows_directory_command() -> list[str]:
+    return ["cmd", "/c", _windows_directory_script()]
 
 
 def _run(command: list[str], env: dict[str, str]) -> None:
