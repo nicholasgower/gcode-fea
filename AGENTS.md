@@ -15,7 +15,7 @@ The output is not the nominal CAD surface. It is the geometry the printer actual
 
 ## 2. Status
 
-Phase 0 integration spike and Phase 1 core geometry MVP complete (2026-10-31). The core ingests Phase 0/Phase 1 probes or caches, solves cross-sections, builds bead meshes, detects contacts, filters ROI, and writes sidecar/report/STL/STEP. Phase 2 (paper benchmark) is next. See `docs/phase0_report.md` and `docs/phase1_report.md`. This document records the modeling assumptions, integration facts, and engineering rules that the implementation must follow. The phased plan is in `ROADMAP.md`.
+Phase 0 integration spike, Phase 1 core geometry MVP, and the Phase 2 benchmark tooling are complete (2026-10-31). The core ingests probes or caches, solves cross-sections, builds bead meshes, detects contacts, filters ROI, and writes sidecar/report/STL/STEP. Phase 2 adds analytic paper coupons, a voxel hex8 mesh, Abaqus/CalculiX input writers, element deletion/localization, and the paper comparison harness; the benchmark solve itself needs an external FE solver. See `docs/phase0_report.md`, `docs/phase1_report.md`, and `docs/paper_benchmark.md`. This document records the modeling assumptions, integration facts, and engineering rules that the implementation must follow. The phased plan is in `ROADMAP.md`.
 
 Open decisions are tracked in `ROADMAP.md`; do not silently resolve them in code.
 
@@ -27,13 +27,16 @@ Current:
 AGENTS.md, ROADMAP.md, CREDITS.md, LICENSE, pyproject.toml
 sources/fracture_behavior/   # Seibel & Kiendl (2025) paper and license
 src/gcode_fea/               # core: model, cross-sections, cache, sweep, contacts, export, report, cli
+src/gcode_fea/solvers/       # element deletion, Abaqus/CalculiX writers, coupon jobs
 plugins/phase0_probe/        # Phase 0/Phase 1 slicing-pipeline probe
 helper_scripts/              # env doctor, slice wrapper, plugin sync, Phase 0 bead builder
 tests/                       # helper and core tests
 tests/fixtures/phase0/       # one-layer probe + minimal bead STEP/report
 tests/fixtures/phase1/       # real 20 mm cube probe + report
+tests/fixtures/benchmark/    # analytic paper coupon metrics
 docs/phase0_report.md        # Phase 0 results and findings
 docs/phase1_report.md        # Phase 1 core geometry results and limitations
+docs/paper_benchmark.md      # Phase 2 benchmark tooling and status
 ```
 
 Planned:
@@ -41,7 +44,6 @@ Planned:
 ```text
 src/gcode_fea/               # core library: bead model, cross-sections, contacts, export
 src/gcode_fea/orca/          # thin OrcaSlicer plugin adapter
-src/gcode_fea/solvers/       # Abaqus/CalculiX templates and element-deletion helpers
 plugins/phase0_probe/        # Phase 0 slicing-pipeline probe plugin
 helper_scripts/              # env doctor, headless slice wrapper, plugin sync
 tests/                       # unit, integration, benchmark, regression
@@ -268,7 +270,7 @@ Do not hardcode material properties or `c_v`. They are calibration inputs, not c
 | Glued solid | union with shared faces | interface face sets |
 | Faceted B-rep | STEP from a mesh | large models, robust export |
 | Envelope | outer hull only | contact/BCs, CAD comparison |
-| Volume mesh | hex/tet with sets | analysis-ready |
+| Volume mesh | voxel hex8 with bead/layer/role sets (tet and conforming hex pending) | analysis-ready |
 
 Default to region of interest for bead-resolved exports. Full-part bead B-rep is not a supported default. Use coarse/homogenized modes or submodeling for full parts.
 
@@ -296,6 +298,7 @@ Default to region of interest for bead-resolved exports. Full-part bead B-rep is
 - OrcaSlicer paths: config/plugins/logs under `~/.config/OrcaSlicer`; plugin target 2.5.0-beta build `345efec6`; MCP target 2.4.2-mcp.13.
 - Reference printer: Creality Ender 3 V2 Neo. Use its OrcaSlicer profile for physical tests and record the exact print settings with each coupon.
 - Phase 1 core defaults: `volume_conserving` cross-section, segment-prism compound sweep, 2.5D contact grid, polygonal STEP profile. Use `--join miter` only for comparison, and use ROI for STEP exports.
+- Phase 2 defaults: analytic paper coupons, `paper_octagon` cross-section, voxel hex8 mesh at `<= 0.05 mm` when volume or contact height matters, Rankine criterion, 0.01% deletion localization. Do not claim the benchmark passes until a solver run is in `docs/`.
 - License: MIT for original project code (`LICENSE`); preserve `CREDITS.md`. The paper is CC BY 4.0; OrcaSlicer and the MaxEllis fork are AGPL-3.0. Do not copy AGPL code into the MIT core; review combined-work obligations before distributing a bundled plugin or modified OrcaSlicer. The Python project declares `license = { text = "MIT" }` in `pyproject.toml`.
 - Style: Python 3.12+, type hints, `ruff`/`black` (or the project's chosen formatter), `pytest`. Keep the core free of GUI and OrcaSlicer imports.
 
@@ -344,6 +347,7 @@ Don't:
 - Don't claim the paper benchmark passes until the comparison is in `docs/`.
 - Don't import `orca` in the core or in tests that should run headless.
 - Don't rely on experimental plugin behavior without an adapter and a version check.
+- Don't claim the Phase 2 benchmark passes without a solver run recorded in `docs/`.
 
 ## 15. Commands
 
@@ -440,14 +444,25 @@ Expected core artifacts: `beads.json`, `report.json`, optional `beads.stl`,
 optional `beads.step`. The 20 mm cube fixture has 390 beads in 100 layers.
 See `docs/phase1_report.md` for acceptance results and limitations.
 
-Planned: G-code input fallback, volume-mesh export, fused STEP, multi-material
-and support data.
+Phase 2 benchmark (verified 2026-10-31):
+
+```bash
+uv run python -m gcode_fea.benchmark_cli \
+  --out out/benchmark --resolution 0.05 --solver calculix
+```
+
+Each coupon directory contains `model.inp`, `deletion_plan.json`,
+`voxel_mesh.json`, and `job.json`; `benchmark.json` aggregates the five angles.
+The solver run itself is pending (no FE solver installed).
+
+Planned: G-code input fallback, fused STEP, multi-material and support data.
 
 ## 16. References
 
 - Seibel, S., Kiendl, J. (2025). *A finite element approach for modelling the fracture behaviour of unidirectional FFF-printed parts.* Progress in Additive Manufacturing 10:6981–6992. https://doi.org/10.1007/s40964-025-01021-8. Local copy: `sources/fracture_behavior/fracture_behavior_FFF.pdf` (CC BY 4.0).
 - Attribution and credits: `CREDITS.md` (project MIT license, paper citation, CC BY 4.0 notice, changes made, software credits).
 - Phase 1 core report: `docs/phase1_report.md` (algorithms, 20 mm cube results, limitations).
+- Phase 2 benchmark report: `docs/paper_benchmark.md` (coupon/BC/deletion tooling, paper comparison, pending solver run).
 - OrcaSlicer plugin system: https://www.orcaslicer.com/wiki/developer_reference/plugin_development/plugin_system.html
 - OrcaSlicer plugin development: https://www.orcaslicer.com/wiki/developer_reference/plugin_development/plugin_development.html
 - OrcaSlicer slicing API: https://www.orcaslicer.com/wiki/developer_reference/plugin_development/api_reference/slicing.html

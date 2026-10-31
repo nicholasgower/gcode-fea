@@ -112,27 +112,30 @@ The 2.5 build is the only plugin target (`src/slic3r/plugin` is absent at `v2.4.
 
 **Goal:** reproduce Seibel & Kiendl's unidirectional PLA results.
 
+**Status (2026-10-31): simulation tooling complete; solver run pending.** Coupon generation, voxel meshing, Abaqus/CalculiX input writing, deletion/localization, and the comparison harness are implemented and tested. No solver is installed in this environment, so the strength trend and `E`/`σ_f` comparison are not yet demonstrated. See `docs/paper_benchmark.md`.
+
 **Deliverables**
 
-- Paper octagon mode with `c_h`, `c_v`, area scaling.
-- Material card: `E = 3901 MPa`, `ν = 0.3`, `σ_f = 45.38 MPa`.
-- Rankine criterion.
-- Boundary conditions and load steps for the 0/30/45/60/90° coupons.
-- Element-deletion + localization script for the target solver.
-- Comparison report: `E`, `σ_f`, failure mode, angle trend.
+- Paper octagon mode with `c_h`, `c_v`, area scaling. **Done.**
+- Material card: `E = 3901 MPa`, `ν = 0.3`, `σ_f = 45.38 MPa`. **Done.**
+- Rankine criterion. **Done**, with von Mises for comparison.
+- Boundary conditions and load steps for the 0/30/45/60/90° coupons. **Done** as a recipe plus solver node sets.
+- Element-deletion + localization script for the target solver. **Done** as a solver-agnostic driver; not yet coupled to a live solver.
+- Comparison report: `E`, `σ_f`, failure mode, angle trend. **Harness done**; results pending.
 
 **Acceptance**
 
-- The strength trend decreases with angle; intralayer failure for non-0°; 0° behaves differently.
-- `E` and `σ_f` within the agreed tolerance (target ~10–15%).
-- The script runs to complete failure on the reduced model.
-- `docs/paper_benchmark.md` records the comparison.
+- The strength trend decreases with angle; intralayer failure for non-0°; 0° behaves differently. **Pending solver run.**
+- `E` and `σ_f` within the agreed tolerance (target ~10–15%). **Pending solver run.**
+- The script runs to complete failure on the reduced model. **Driver tested on synthetic fields; solver coupling pending.**
+- `docs/paper_benchmark.md` records the comparison. **Written with status and pending items.**
 
 **Risks**
 
 - Calibration mismatch between the paper's reduced-area model and the volume-conserving model.
 - Mesh convergence and runtime.
 - Solver-specific element deletion/localization.
+- Voxel staircasing: interface area is overestimated until `c_v b` is resolved.
 
 ## Phase 2b — Physical geometry validation (Ender 3 V2 Neo)
 
@@ -275,6 +278,9 @@ The 2.5 build is the only plugin target (`src/slic3r/plugin` is absent at `v2.4.
 | D15 | Plugin hook execution | Resolved | GUI-only in 2.5.0-beta; CLI for core tests, GUI/manual for plugin hooks |
 | D16 | Sweep join model | Resolved | Segment-prism compound default; miter sweep optional (volume loss at corners) |
 | D17 | Contact model | Resolved | 2.5D footprint grid; contact-patch splitting is future work |
+| D18 | Benchmark solver target | Open | Abaqus and CalculiX input writers implemented; no solver installed yet |
+| D19 | Benchmark mesh | Resolved | Voxel hex8 mesh; 0.05 mm or finer to resolve the paper strand |
+| D20 | Benchmark failure criterion | Resolved | Rankine for brittle PLA; von Mises only for comparison |
 
 ## Risk register
 
@@ -305,14 +311,16 @@ The 2.5 build is the only plugin target (`src/slic3r/plugin` is absent at `v2.4.
 | 2.5D contact approximation | aggregated/closed-loop contacts | finer grid; patch splitting; validate |
 | STEP size (polygonal profile) | large files | ROI; stride with error check; fused/faceted later |
 | Multi-material data gap | no per-path material | add plugin binding/G-code; report default |
-| Volume mesh absent | manual FEA meshing step | add hex/tet export |
+| Volume mesh absent | manual FEA meshing step | voxel hex8 export implemented |
+| Voxel interface area overestimate | cohesive stiffness too high | scale interface areas from contacts; refine voxels |
+| No solver available locally | benchmark cannot be executed | ship generated jobs; run on a solver host |
 | Audit prompts outside `~/.config/OrcaSlicer` | export friction | plugin storage; G-code folder; declare permissions |
 | Two-build divergence (2.5 plugin vs 2.4.2 MCP) | confusion | pin builds; document roles; no plugin dependency on MCP |
 
 ## Definition of done
 
 - **v0.1 (geometry):** Phase 0 and Phase 1 core complete; plugin discovery/hook smoke test; real 20 mm cube fixture; ROI STEP + sidecar + report; volume/envelope/watertight gates pass; dedicated thin-wall/overhang/multi-material fixtures pending; docs and tests.
-- **v0.2 (benchmark + physical geometry):** Phase 2 and 2b complete; paper comparison and Ender 3 V2 Neo coupon measurements documented.
+- **v0.2 (benchmark + physical geometry):** Phase 2 tooling complete (solver run pending) and Phase 2b complete; paper comparison and Ender 3 V2 Neo coupon measurements documented.
 - **v0.3 (adhesion):** Phase 3 complete; cohesive workflow + solver template.
 - **v1.0 (plugin):** Phase 5 complete; end-to-end OrcaSlicer UX; docs; packaging.
 
