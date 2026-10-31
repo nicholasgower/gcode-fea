@@ -263,7 +263,7 @@ The 2.5 build is the only plugin target (`src/slic3r/plugin` is absent at `v2.4.
 
 **Goal:** close the small correctness and UX gaps left after Phase 5 without changing the core contracts or the benchmark schedule.
 
-**Status (2026-10-31): planned.** The merged STEP engine is validated on a 5-layer cube, but several minor issues remain in the planar fallback, full-part sizing, dependency handling, and test coverage.
+**Status (2026-10-31): in progress.** STEP `closed`/`open_edges`/`bytes`/`dropped_solids` reporting, closed-shell failure for dropped merged solids, `max_step_triangles` forwarding, and the read-only `step_audit.py`, `step_budget.py`, and `plugin_permission_audit.py` helpers are in place. Planar shell switching, coplanar merging, tiny-face cleanup, full `cube.stl` plugin coverage, and optional-dependency CI remain.
 
 **Deliverables**
 

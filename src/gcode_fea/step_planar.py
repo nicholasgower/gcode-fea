@@ -169,8 +169,13 @@ def write_step_planar(
     target.parent.mkdir(parents=True, exist_ok=True)
 
     solids: list[PlanarSolid] = []
+    dropped_solids = 0
     for bead in model.sorted_beads():
-        solids.extend(build_solids(bead, profile_stride, tolerance))
+        bead_solids = build_solids(bead, profile_stride, tolerance)
+        if not bead_solids:
+            dropped_solids += 1
+            continue
+        solids.extend(bead_solids)
     if not solids:
         raise ValueError("no bead segments could be converted to solids")
 
@@ -179,11 +184,13 @@ def write_step_planar(
     solid_ids: list[int] = []
     face_count = 0
     point_count = 0
+    open_edges = 0
     for prism in solids:
         solid_id, next_id = _emit_solid(lines, prism, next_id)
         solid_ids.append(solid_id)
         face_count += len(prism.faces)
         point_count += len(prism.points)
+        open_edges += _open_edge_count(prism.faces)
 
     _patch_representation(lines, solid_ids)
     lines.append("ENDSEC;")
@@ -203,7 +210,24 @@ def write_step_planar(
         "volume_relative_error": (
             abs(step_volume - analytic) / analytic if analytic > 0 else None
         ),
+        "closed": open_edges == 0,
+        "open_edges": open_edges,
+        "bytes": target.stat().st_size,
+        "dropped_solids": dropped_solids,
     }
+
+
+def _open_edge_count(faces: list[list[int]]) -> int:
+    """Edges of a shell not shared by exactly two faces."""
+
+    counts: dict[tuple[int, int], int] = {}
+    for face in faces:
+        for index in range(len(face)):
+            u = face[index]
+            v = face[(index + 1) % len(face)]
+            key = (u, v) if u < v else (v, u)
+            counts[key] = counts.get(key, 0) + 1
+    return sum(1 for count in counts.values() if count != 2)
 
 
 def _emit_solid(

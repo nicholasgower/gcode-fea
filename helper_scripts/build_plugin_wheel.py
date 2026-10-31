@@ -7,8 +7,10 @@ The wheel bundles:
 - ``gcode_fea`` - the core, so the adapter needs no external install,
 - ``METADATA``/``WHEEL``/``RECORD`` and the license/credits files.
 
-Only NumPy is an external dependency; OrcaSlicer's bundled ``uv`` installs it
-from the PEP 723 metadata (or the wheel's ``Requires-Dist``).
+The wheel metadata declares NumPy (required) plus Shapely and Manifold3D
+(optional: used by wall-overlap trimming and the merged STEP engine). OrcaSlicer's
+bundled ``uv`` installs them from the PEP 723 metadata (or the wheel's
+``Requires-Dist``).
 
 Usage:
     python3 helper_scripts/build_plugin_wheel.py --out dist

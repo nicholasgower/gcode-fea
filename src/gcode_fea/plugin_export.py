@@ -49,6 +49,7 @@ def export_from_cache(
     if not model.beads:
         raise ValueError("the region of interest contains no beads")
     trim_report = None
+    step_summary = None
     if config.trim_overlaps:
         from .trim import trim_model
 
@@ -153,6 +154,17 @@ def export_from_cache(
             max_triangles=config.max_step_triangles,
         )
         files["step"] = step["path"]
+        step_summary = {
+            "engine": step.get("engine"),
+            "solids": step.get("solids"),
+            "faces": step.get("faces", step.get("triangles")),
+            "triangles": step.get("triangles"),
+            "bytes": step.get("bytes"),
+            "closed": step.get("closed"),
+            "open_edges": step.get("open_edges"),
+            "dropped_solids": step.get("dropped_solids", 0),
+            "volume_relative_error": step.get("volume_relative_error"),
+        }
 
     _report(progress, 1.0, "Done")
     summary = {
@@ -165,6 +177,7 @@ def export_from_cache(
         "contacts": stats["count"],
         "interfaces": interface_report(interfaces) if interfaces else None,
         "trim": trim_report,
+        "step": step_summary,
         "mean_bond_quality": (
             sum(item.bond_quality for item in interfaces) / len(interfaces)
             if interfaces
@@ -233,6 +246,7 @@ def export_step_from_cache(
         profile_stride=config.step_stride,
         step_engine=config.step_engine,
         step_tolerance=config.step_tolerance,
+        max_triangles=config.max_step_triangles,
     )
     _report(progress, 1.0, "Done")
     return {
@@ -246,6 +260,9 @@ def export_step_from_cache(
         "faces": result.get("triangles", estimated),
         "triangles": result.get("triangles"),
         "bytes": target.stat().st_size,
+        "closed": result.get("closed"),
+        "open_edges": result.get("open_edges"),
+        "dropped_solids": result.get("dropped_solids", 0),
         "volume": result.get("volume"),
         "volume_relative_error": result.get("volume_relative_error"),
         "file": str(target),

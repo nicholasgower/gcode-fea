@@ -337,7 +337,6 @@ class ExportSTEPViewable(orca.script.ScriptPluginCapabilityBase):
                 "No slice cache yet. Slice the plate once with "
                 "'Capture Slice Cache' enabled, then run Export STEP again.",
             )
-        output_dir = plugin_config.resolve_output_dir(storage)
         target = plugin_config.resolve_save_path(storage)
         dialog_note = ""
         if plugin_config.ask_save_path:
@@ -356,12 +355,9 @@ class ExportSTEPViewable(orca.script.ScriptPluginCapabilityBase):
                     "\n(no native save dialog available; used the configured "
                     "save path)"
                 )
-        output_dir = target.parent
-        try:
-            output_dir.mkdir(parents=True, exist_ok=True)
-        except OSError as exc:
-            return _write_failure("STEP export failed", exc, output_dir)
-
+        # The destination directory is created by the fixed copy helper, in a
+        # child process, so the audited Python call never writes to the
+        # user-chosen path.
         cancelled = {"value": False}
 
         def progress(fraction: float, message: str) -> None:
@@ -403,6 +399,14 @@ class ExportSTEPViewable(orca.script.ScriptPluginCapabilityBase):
         )
         if summary.get("volume_relative_error") is not None:
             message += f", volume error {summary['volume_relative_error']:.2e}"
+        closed = summary.get("closed")
+        if closed is False:
+            message += (
+                f"\nwarning: {summary.get('open_edges', 0)} open shell edge(s); "
+                "run helper_scripts/step_audit.py before using this file"
+            )
+        elif closed:
+            message += "\nshell: closed"
         message += dialog_note
         return orca.ExecutionResult.success(
             message, data=json.dumps(summary, sort_keys=True)

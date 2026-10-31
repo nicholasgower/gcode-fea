@@ -17,6 +17,7 @@ from gcode_fea.step_planar import estimate_faces, write_step_planar
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PROBE = REPO_ROOT / "tests" / "fixtures" / "phase0" / "phase0_probe_obj102.json"
+HAVE_SHAPELY = importlib.util.find_spec("shapely") is not None
 
 
 class PlanarStepTests(unittest.TestCase):
@@ -42,6 +43,10 @@ class PlanarStepTests(unittest.TestCase):
             self.assertIn("CLOSED_SHELL", text)
             self.assertIn("EDGE_CURVE", text)
             self.assertIn("ADVANCED_BREP_SHAPE_REPRESENTATION", text)
+            self.assertTrue(result["closed"])
+            self.assertEqual(result["open_edges"], 0)
+            self.assertEqual(result["dropped_solids"], 0)
+            self.assertGreater(result["bytes"], 0)
 
     def test_entity_references_are_complete(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -174,9 +179,13 @@ class StepOnlyExportTests(unittest.TestCase):
             self.assertGreater(summary["solids"], 0)
             self.assertGreater(summary["faces"], 0)
             self.assertGreater(summary["bytes"], 0)
+            self.assertTrue(summary["closed"])
+            self.assertEqual(summary["open_edges"], 0)
+            self.assertEqual(summary["dropped_solids"], 0)
             self.assertTrue(target.exists())
             self.assertLess(summary["volume_relative_error"], 0.05)
 
+    @unittest.skipUnless(HAVE_SHAPELY, "shapely is not installed")
     def test_step_trim_overlaps(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp) / "out"

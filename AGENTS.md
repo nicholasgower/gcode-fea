@@ -538,6 +538,32 @@ uv run python -m gcode_fea.cli \
 `tests/fixtures/profiles/process_gcode_fea.json` is the capture-enabled process
 preset.
 
+Phase 6 STEP audit and budget helpers (verified 2026-10-31):
+
+```bash
+# Close-shell / one-body audit; text mode needs no optional dependency.
+python3 helper_scripts/step_audit.py out/step-planar/beads.step --expect-one-body
+python3 helper_scripts/step_audit.py out/step-planar/beads.step --occt \
+  --json out/step-planar/audit.json
+
+# Preflight size and layer budget without writing a STEP.
+python3 helper_scripts/step_budget.py \
+  --probe tests/fixtures/phase0/phase0_probe_obj102.json \
+  --engine planar --tolerance 0.005
+uv run --with manifold3d python helper_scripts/step_budget.py \
+  --probe tests/fixtures/phase0/phase0_probe_obj102.json \
+  --engine merged --tolerance 0.005
+
+# Static audited-write / declared-command audit for the plugin adapter.
+python3 helper_scripts/plugin_permission_audit.py
+```
+
+`step_audit.py` exits 0 for a closed shell (and one body, when requested), 1 for
+an open shell or failed expectation, and 2 when it cannot read/parse the file or
+OCCT is unavailable. `step_budget.py` writes only `--json`; `step_audit.py` writes
+only `--json`; `plugin_permission_audit.py` writes only `--json`. All three are
+read-only against the repository.
+
 Planned: Pages tab, G-code input fallback, fused STEP, multi-material and
 support data.
 

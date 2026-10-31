@@ -189,11 +189,16 @@ otherwise planar.
 
 Measured:
 
-| Case | Engine | Solids | Triangles/faces | File | Volume error |
-|---|---|---:|---:|---:|---:|
-| Phase 0 probe, 3 beads | merged | 1 | 3,040 | 2.35 MB | 8.1% (overlap counted once) |
-| 20 mm cube, layer 0, 3 beads | merged | 1 | 6,506 | 5.1 MB | 3.5% |
-| Phase 0 probe, 3 beads | planar | 3 | 3,052 | 2.9 MB | 0.05% |
+| Case | Engine | Tolerance | Solids | Triangles/faces | File | Volume error |
+|---|---|---:|---:|---:|---:|---:|
+| Phase 0 probe, 3 beads | merged | 0 | 1 | 14,372 | 11.4 MB | 7.5% (overlap counted once) |
+| Phase 0 probe, 3 beads | merged | 0.005 | 1 | 4,694 | 3.6 MB | 8.2% (overlap counted once) |
+| Phase 0 probe, 3 beads | planar | 0 | 3 | 3,052 | 3.0 MB | 0.05% |
+| Phase 0 probe, 3 beads | planar | 0.005 | 3 | 734 | 0.69 MB | 1.3% |
+
+Every STEP result now reports `closed`, `open_edges`, `bytes`, and
+`dropped_solids`. A merged export fails rather than silently losing a bead
+solid, and the plugin shows a warning if a written shell is open.
 
 The merged volume error is expected: overlapping volume is now counted once, so
 the result is below the sum of bead volumes. The reported value compares against
@@ -213,11 +218,48 @@ in mm) before union. Full parts get large; the merged engine refuses more than
 exports. For an analytic B-rep without union, install gmsh and set
 `step_engine: "gmsh"`.
 
+### Auditing and budgeting STEP output
+
+Two read-only helpers check STEP files without opening a CAD application:
+
+```bash
+# Verify every solid shell is closed; optionally require one body.
+python3 helper_scripts/step_audit.py out/merged.step --expect-one-body
+python3 helper_scripts/step_audit.py out/merged.step --occt --json out/audit.json
+
+# Estimate faces/triangles, bytes, and a layer range before writing.
+python3 helper_scripts/step_budget.py \
+  --probe tests/fixtures/phase0/phase0_probe_obj102.json \
+  --engine planar --tolerance 0.005
+uv run --with manifold3d python helper_scripts/step_budget.py \
+  --cache ~/.config/OrcaSlicer/orca_plugins/plugin_data/<plugin>/cache/slice.json \
+  --engine merged --tolerance 0.005
+```
+
+`step_audit.py` exits 0 only when every shell is closed (and one body was
+requested and found), 1 for an open shell or failed expectation, and 2 when the
+file cannot be parsed or OCCT is unavailable. `step_budget.py` prints an
+estimated size and, when the limit is exceeded, a concrete contiguous
+`layer_range`. Both estimate from calibrated bytes-per-face (planar) and
+bytes-per-triangle (merged) constants, so treat the size as a budget, not an
+exact count.
+
+The plugin also includes a static permission audit:
+
+```bash
+python3 helper_scripts/plugin_permission_audit.py
+```
+
+It fails if a capability writes directly to a user-chosen path instead of
+staging in plugin storage and copying with the fixed helper, or if the declared
+process commands drift from the helpers that build them.
+
 ### Optional clipping (legacy)
 
 `trim_overlaps` clips infill paths at wall footprints instead of unioning them.
-It is off by default; it was an earlier workaround and leaves separate bodies.
-Use `step_engine: "merged"` for actual merging.
+It is deprecated: it changes deposited volume, requires Shapely, and leaves
+separate bodies. It is off by default and kept only for comparisons. Use
+`step_engine: "merged"` for actual merging.
 
 ## Choosing the save location
 

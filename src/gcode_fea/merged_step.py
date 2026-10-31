@@ -55,6 +55,7 @@ def write_step_merged(
         raise ValueError("cannot export an empty model")
 
     manifolds = []
+    dropped_solids = 0
     for bead in model.sorted_beads():
         profile = list(bead.cross_section.profile)
         if tolerance > 0:
@@ -62,6 +63,7 @@ def write_step_merged(
         if profile_stride > 1:
             profile = profile[::profile_stride]
         if len(profile) < 3:
+            dropped_solids += 1
             continue
         # Use the convex per-segment prisms. The stitched/mitred bead solids
         # can self-intersect at sharp closed-loop corners; Manifold then splits
@@ -71,6 +73,14 @@ def write_step_merged(
             manifold = _solid_to_manifold(m3, solid)
             if manifold is not None:
                 manifolds.append(manifold)
+            else:
+                dropped_solids += 1
+    if dropped_solids:
+        raise ValueError(
+            f"merged STEP dropped {dropped_solids} bead solid(s) during "
+            "conversion; reduce step_stride or step_tolerance, or raise the "
+            "profile resolution, so no deposited geometry is lost silently"
+        )
     if not manifolds:
         raise ValueError("no bead solids could be converted for merging")
 
@@ -127,6 +137,8 @@ def write_step_merged(
         ),
         "closed": open_edges == 0,
         "open_edges": open_edges,
+        "bytes": target.stat().st_size,
+        "dropped_solids": dropped_solids,
         "merged_from_beads": len(model.beads),
     }
 
