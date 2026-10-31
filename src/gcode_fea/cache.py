@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 from pathlib import Path
@@ -23,6 +24,31 @@ def load_probe(
 
     source = Path(path)
     data = json.loads(source.read_text())
+    return model_from_probe_data(
+        data,
+        source_name=source.name,
+        mode=mode,
+        c_h=c_h,
+        c_v=c_v,
+        nominal_width=nominal_width,
+    )
+
+
+def model_from_probe_data(
+    data: dict,
+    source_name: str = "probe",
+    mode: str = "volume_conserving",
+    c_h: float = 0.7,
+    c_v: float = 0.225,
+    nominal_width: float | None = None,
+) -> SliceModel:
+    """Convert a probe payload (already parsed) into a SliceModel.
+
+    The plugin uses this so the serialization stays in the core and the adapter
+    does not reimplement the probe schema.
+    """
+
+    source = Path(source_name)
     if "layers" in data:
         layer_payloads = [
             (int(layer.get("layer_index", index)), layer)
@@ -104,6 +130,7 @@ def save_cache(model: SliceModel, path: str | Path) -> Path:
     payload = {
         "schema": SCHEMA,
         "meta": model.meta,
+        "slice_hash": slice_hash(model),
         "beads": [_bead_to_dict(bead) for bead in model.sorted_beads()],
     }
     target.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
@@ -119,6 +146,61 @@ def load_cache(path: str | Path) -> SliceModel:
     if not beads:
         raise ValueError(f"{source} contains no beads")
     return SliceModel(beads=beads, meta=dict(payload.get("meta", {})))
+
+
+def slice_hash(model: SliceModel) -> str:
+    """Stable content hash of the bead model (IDs, geometry, process inputs)."""
+
+    canonical = [
+        [
+            bead.bead_id,
+            bead.object_id,
+            bead.layer_index,
+            bead.print_z,
+            bead.role,
+            bead.material,
+            [list(point) for point in bead.points],
+            bead.nominal_width,
+            bead.height,
+            bead.area_per_length,
+            bead.cross_section.mode,
+        ]
+        for bead in model.sorted_beads()
+    ]
+    text = json.dumps(canonical, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def cache_info(path: str | Path) -> dict:
+    """Summary of a slice cache for the plugin status panel and stale checks."""
+
+    source = Path(path)
+    payload = json.loads(source.read_text())
+    if payload.get("schema") != SCHEMA:
+        raise ValueError(f"{source} has unsupported schema: {payload.get('schema')}")
+    beads = payload.get("beads", [])
+    layers = sorted({int(item.get("layer_index", 0)) for item in beads})
+    meta = dict(payload.get("meta", {}))
+    return {
+        "path": str(source),
+        "schema": payload.get("schema"),
+        "slice_hash": payload.get("slice_hash"),
+        "bead_count": len(beads),
+        "layer_count": len(layers),
+        "layer_range": [layers[0], layers[-1]] if layers else None,
+        "source": meta.get("source"),
+        "mode": meta.get("mode"),
+        "truncated": bool(meta.get("truncated", False)),
+        "orcaslicer_version": meta.get("orcaslicer_version"),
+        "bytes": source.stat().st_size,
+    }
+
+
+def source_fingerprint(path: str | Path) -> str:
+    """Content hash of a probe file, used to detect a stale cache."""
+
+    source = Path(path)
+    return hashlib.sha256(source.read_bytes()).hexdigest()
 
 
 def _probe_points(
