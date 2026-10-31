@@ -36,6 +36,9 @@ class PluginConfig:
     core_path: str = ""
     cache_path: str = ""
     output_dir: str = ""
+    save_path: str = ""
+    ask_output_dir: bool = True
+    ask_save_path: bool = True
     probe_path: str = ""
     gcode_path: str = ""
     open_after_export: bool = False
@@ -99,6 +102,11 @@ class PluginConfig:
 
     def resolve_output_dir(self, storage: Path) -> Path:
         return Path(self.output_dir) if self.output_dir else storage / "exports"
+
+    def resolve_save_path(self, storage: Path) -> Path:
+        if self.save_path:
+            return Path(self.save_path)
+        return self.resolve_output_dir(storage) / "beads.step"
 
     def resolve_probe_path(self, storage: Path) -> Path | None:
         if self.probe_path:
