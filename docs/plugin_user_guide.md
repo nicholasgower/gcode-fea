@@ -99,6 +99,7 @@ JSON. Defaults:
   "resolution": 0.1,
   "step_stride": 1,
   "step_engine": "auto",
+  "step_tolerance": 0.0,
   "max_step_faces": 150000,
   "roi": null,
   "layer_range": null,
@@ -120,6 +121,7 @@ JSON. Defaults:
 | `resolution` | contact grid and voxel resolution (mm); 0.05–0.2 is practical |
 | `step_stride` | keep every Nth profile point in STEP; 1 = full |
 | `step_engine` | `auto`, `gmsh`, or `planar`; `auto` uses gmsh if importable, otherwise the built-in writer |
+| `step_tolerance` | simplify curved profile sections within this chord tolerance (mm); 0 keeps every point |
 | `max_step_faces` | preflight limit that stops an oversized STEP export |
 | `roi` | `[xmin, ymin, zmin, xmax, ymax, zmax]` or `null` |
 | `layer_range` | `[first, last]` or `null` |
@@ -136,8 +138,9 @@ The capture capability has its own config: `mode`, `c_h`, `c_v`,
 
 ```json
 {
-  "step_stride": 2,
+  "step_stride": 1,
   "step_engine": "planar",
+  "step_tolerance": 0.005,
   "max_step_faces": 150000,
   "roi": null,
   "layer_range": null,
@@ -148,7 +151,7 @@ The capture capability has its own config: `mode`, `c_h`, `c_v`,
 ```
 
 It writes `exports/beads.step`. Defaults use the built-in planar writer, stride
-2, and the 150k-face preflight. Set `roi` or `layer_range` to keep a large part
+1, a 0.005 mm chord tolerance for curved sections, and the 150k-face preflight. Set `roi` or `layer_range` to keep a large part
 small; raise `max_step_faces` only if you accept the file size.
 
 ## Cache management and staleness
@@ -163,24 +166,28 @@ small; raise `max_step_faces` only if you accept the file size.
 ## STEP viewing
 
 `write_step: true` now works without gmsh. The built-in `planar` engine writes
-an AP214 `MANIFOLD_SOLID_BREP` with one closed solid per straight segment prism,
-so OCCT, FreeCAD, PrePoMax, and other STEP viewers open it. Each prism is
-flat-faceted: this is a viewing/geometry exchange format, not an analytic swept
-surface.
+an AP214 `MANIFOLD_SOLID_BREP` with **one closed solid per bead**: rings at
+path vertices are shared, so the internal caps and overlapping segment prisms
+of the first implementation are gone. OCCT, FreeCAD, PrePoMax, and other STEP
+viewers open the result. Separate beads remain separate bodies (one body per
+bead) so bead/interface identity is not lost; overlapping *segments inside a
+bead* are merged into its body.
 
-Measured on the Phase 0 probe (3 beads, 61 prisms):
+Curved profile sections can be simplified with `step_tolerance` (maximum chord
+deviation in mm). Measured on the Phase 0 probe (3 beads):
 
-| `step_stride` | Faces | File size | Volume error |
-|---:|---:|---:|---:|
-| 1 | 3,172 | 4.1 MB | 0.05% |
-| 2 | 1,647 | 2.1 MB | 2.0% |
-| 4 | 915 | 1.1 MB | 7.0% |
+| Setting | Solids | Faces | File size | Volume error |
+|---|---:|---:|---:|---:|
+| stride 1, no tolerance | 3 | 3,052 | 2.9 MB | 0.05% |
+| stride 2, no tolerance | 3 | 1,527 | 1.4 MB | 2.0% |
+| stride 1, tolerance 0.005 | 3 | 734 | 0.67 MB | 1.3% |
+| stride 1, tolerance 0.002 | 3 | 1,296 | — | 0.4% |
 
-Full parts get large: the 20 mm cube (390 beads, 8,524 prisms) is about
-230k faces and 307 MB at stride 2. Use `roi` and/or `layer_range` for STEP
-exports; the plugin refuses exports above `max_step_faces` (default 150,000).
-For the highest-quality analytic B-rep, install gmsh and set
-`step_engine: "gmsh"`; `auto` picks it when available.
+The 20 mm cube (390 beads) has about 427k faces with no simplification,
+103k faces at tolerance 0.005, and 77k at tolerance 0.01. Use `roi` and/or
+`layer_range` for large parts; the plugin refuses exports above
+`max_step_faces` (default 150,000). For the highest-quality analytic B-rep,
+install gmsh and set `step_engine: "gmsh"`; `auto` picks it when available.
 
 ## Process data
 
@@ -249,7 +256,9 @@ Logs: `~/.config/OrcaSlicer/log/python_*.log` (tracebacks) and
 | Capture at `posSimplifyPath` | Pass (390 beads, 100 layers) |
 | Script export from the Plugins/Speed Dial | Pass (sidecar + report) |
 | Permissions declared once | Pass (combined load prompt; first-capture `open` prompts) |
-| Planar STEP output read by OCCT/gmsh | Pass (61 solids, correct volume, bbox) |
+| Planar STEP output read by OCCT/gmsh | Pass (3 solids, correct volume, bbox; one body per bead) |
+| One body per bead, no overlapping segment prisms | Pass (3 beads → 3 solids) |
+| Curved-section tolerance | Pass (3,052 → 734 faces at 0.005 mm, 1.3% volume) |
 | Planar STEP from the plugin | Pass (unit test; no gmsh needed) |
 | “Export STEP (viewable)” capability | Pass (unit test; writes `beads.step`) |
 | `psGCodePostProcess` capture | Not dispatched in this build; explicit `gcode_path` used instead |
@@ -259,6 +268,9 @@ Logs: `~/.config/OrcaSlicer/log/python_*.log` (tracebacks) and
 
 - The export runs on the UI thread; very large ROI/STEP exports block the app.
 - Planar STEP files are flat-faceted and can be large; use ROI/layer range.
+- Different beads are exported as separate bodies, not one unioned solid.
+  Fusing them would require a boolean kernel; the planar writer intentionally
+  preserves bead identity.
 - There is no Pages tab or docked panel yet.
 - The cache stores one object per slice; multi-plate/multi-object aggregation is
   future work.
