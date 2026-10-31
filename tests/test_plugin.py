@@ -231,8 +231,9 @@ class PluginTests(unittest.TestCase):
             ["CaptureSliceCache", "ExportFEAGeometry", "ExportSTEPViewable"],
         )
         self.assertEqual(len(self.orca.permission_requests), 1)
-        roots = self.orca.permission_requests[0]["fs_read"]
-        self.assertTrue(any("python" in root for root in roots))
+        request = self.orca.permission_requests[0]
+        self.assertIsInstance(request["process"], list)
+        self.assertTrue(all(path for path in request["process"]))
 
     def test_default_configs(self) -> None:
         capture = self.plugin.CaptureSliceCache().get_default_config()
@@ -387,6 +388,27 @@ class PluginTests(unittest.TestCase):
         kept = self.storage / "cache" / "last.gcode"
         self.assertTrue(kept.exists())
         self.assertEqual(kept.read_text(), gcode.read_text())
+
+    @mock.patch("gcode_fea.plugin_export.export_step_from_cache")
+    def test_step_permission_error_is_actionable(self, export_step) -> None:
+        self.make_capture().execute(
+            FakeContext(FakeObject([FakeLayer(0, 0.2)]))
+        )
+        export_step.side_effect = PermissionError(
+            "Plugin attempted audited operation 'open' without permission"
+        )
+        capability = self.plugin.ExportSTEPViewable()
+        capability.config_json = json.dumps(
+            {
+                "core_path": str(REPO_ROOT / "src"),
+                "ask_save_path": False,
+            }
+        )
+        result = capability.execute()
+        self.assertEqual(result.status, "recoverable")
+        self.assertIn("blocked writing", result.message)
+        self.assertIn("home directory", result.message)
+        self.assertIn("audited operation", result.message)
 
     @mock.patch("gcode_fea.save_dialog.choose_save_file")
     def test_step_save_dialog_uses_chosen_path(self, choose) -> None:
