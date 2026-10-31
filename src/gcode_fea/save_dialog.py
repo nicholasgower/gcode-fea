@@ -15,6 +15,7 @@ to its configured path. Spawning the helper is audited by OrcaSlicer once.
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import sys
@@ -58,39 +59,51 @@ def choose_save_file(
             "--title",
             title,
             "--filename",
-            str(target),
+            target.name,
         ]
         if patterns:
             command.extend(
                 ["--file-filter", f"{filter_name} | {' '.join(patterns)}"]
             )
-        return _run(command, backend, suffix, timeout)
+        return _run(command, backend, suffix, timeout, cwd=target.parent)
 
     if backend == "kdialog":
         command = [
             "kdialog",
             "--getsavefilename",
-            str(target),
+            ".",
             f"{filter_name} ({' '.join(patterns)})",
             "--title",
             title,
         ]
-        return _run(command, backend, suffix, timeout)
+        return _run(command, backend, suffix, timeout, cwd=target.parent)
 
     if backend == "macos":
         script = (
             "POSIX path of (choose file name with prompt "
             f'"{_applescript(title)}" default name "{_applescript(target.name)}")'
         )
-        return _run(["osascript", "-e", script], backend, suffix, timeout)
+        return _run(
+            ["osascript", "-e", script],
+            backend,
+            suffix,
+            timeout,
+            cwd=target.parent,
+        )
 
     if backend == "windows":
-        script = _powershell_save_script(target, title, filter_name, patterns)
+        script = _powershell_save_script(title, filter_name, patterns)
+        env = {
+            "ORCA_FEA_DIR": str(target.parent),
+            "ORCA_FEA_NAME": target.name,
+        }
         return _run(
             ["powershell", "-NoProfile", "-STA", "-Command", script],
             backend,
             suffix,
             timeout,
+            cwd=target.parent,
+            env=env,
         )
 
     return DialogResult(None, False, "error", f"unknown backend: {backend}")
@@ -117,35 +130,42 @@ def choose_directory(
             "--directory",
             "--title",
             title,
-            "--filename",
-            str(target) + "/",
         ]
-        return _run(command, backend, "", timeout)
+        return _run(command, backend, "", timeout, cwd=target)
 
     if backend == "kdialog":
         command = [
             "kdialog",
             "--getexistingdirectory",
-            str(target),
+            ".",
             "--title",
             title,
         ]
-        return _run(command, backend, "", timeout)
+        return _run(command, backend, "", timeout, cwd=target)
 
     if backend == "macos":
         script = (
             "POSIX path of (choose folder with prompt "
-            f'"{_applescript(title)}" default location POSIX file "{_applescript(str(target))}")'
+            f'"{_applescript(title)}")'
         )
-        return _run(["osascript", "-e", script], backend, "", timeout)
+        return _run(
+            ["osascript", "-e", script],
+            backend,
+            "",
+            timeout,
+            cwd=target,
+        )
 
     if backend == "windows":
-        script = _powershell_folder_script(target, title)
+        script = _powershell_folder_script(title)
+        env = {"ORCA_FEA_DIR": str(target)}
         return _run(
             ["powershell", "-NoProfile", "-STA", "-Command", script],
             backend,
             "",
             timeout,
+            cwd=target,
+            env=env,
         )
 
     return DialogResult(None, False, "error", f"unknown backend: {backend}")
@@ -170,13 +190,20 @@ def _run(
     backend: str,
     suffix: str,
     timeout: float | None,
+    cwd: Path | None = None,
+    env: dict[str, str] | None = None,
 ) -> DialogResult:
     try:
+        run_env = os.environ.copy()
+        if env:
+            run_env.update(env)
         completed = subprocess.run(
             command,
             capture_output=True,
             text=True,
             timeout=timeout,
+            cwd=str(cwd) if cwd else None,
+            env=run_env,
         )
     except FileNotFoundError:
         return DialogResult(None, False, "none", f"{command[0]} not found")
@@ -208,7 +235,6 @@ def _applescript(value: str) -> str:
 
 
 def _powershell_save_script(
-    target: Path,
     title: str,
     filter_name: str,
     patterns: tuple[str, ...],
@@ -219,8 +245,8 @@ def _powershell_save_script(
         "Add-Type -AssemblyName System.Windows.Forms;"
         "$d = New-Object System.Windows.Forms.SaveFileDialog;"
         f"$d.Title = '{_powershell(title)}';"
-        f"$d.InitialDirectory = '{_powershell(str(target.parent))}';"
-        f"$d.FileName = '{_powershell(target.name)}';"
+        "$d.InitialDirectory = $env:ORCA_FEA_DIR;"
+        "$d.FileName = $env:ORCA_FEA_NAME;"
         f"$d.Filter = '{_powershell(filter_text)}';"
         "$d.OverwritePrompt = $true;"
         "if ($d.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) "
@@ -228,12 +254,12 @@ def _powershell_save_script(
     )
 
 
-def _powershell_folder_script(target: Path, title: str) -> str:
+def _powershell_folder_script(title: str) -> str:
     return (
         "Add-Type -AssemblyName System.Windows.Forms;"
         "$d = New-Object System.Windows.Forms.FolderBrowserDialog;"
         f"$d.Description = '{_powershell(title)}';"
-        f"$d.SelectedPath = '{_powershell(str(target))}';"
+        "$d.SelectedPath = $env:ORCA_FEA_DIR;"
         "if ($d.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) "
         "{ Write-Output $d.SelectedPath }"
     )

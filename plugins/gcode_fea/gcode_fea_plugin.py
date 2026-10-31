@@ -33,6 +33,15 @@ from pathlib import Path
 
 import orca
 
+try:  # imported at plugin load, before any audited capability call
+    from gcode_fea import cache as _core_cache
+    from gcode_fea import config as _core_config
+    from gcode_fea import plugin_export as _core_export
+    from gcode_fea import save_dialog as _core_dialog
+    from gcode_fea import transfer as _core_transfer
+except Exception:  # single-file install without the bundled core
+    _core_cache = _core_config = _core_export = _core_dialog = _core_transfer = None
+
 CACHE_DIRNAME = "cache"
 CACHE_FILENAME = "slice.json"
 PROBE_FILENAME = "slice_probe.json"
@@ -236,16 +245,24 @@ class ExportFEAGeometry(orca.script.ScriptPluginCapabilityBase):
         except Exception:
             handle = None
 
+        staging = _staging_dir(storage, "export")
         try:
             summary = core["export_from_cache"](
                 cache_path,
-                output_dir,
+                staging,
                 plugin_config,
                 progress=progress,
                 gcode_path=plugin_config.resolve_gcode_path(storage),
             )
+            core["copy_directory"](staging, output_dir)
+            summary["files"] = {
+                key: str(output_dir / Path(value).name)
+                for key, value in summary["files"].items()
+            }
+            summary["output_dir"] = str(output_dir)
+            shutil.rmtree(staging, ignore_errors=True)
         except Exception as exc:
-            return _failure("export failed", exc)
+            return _write_failure("export failed", exc, output_dir)
         finally:
             if handle is not None:
                 try:
@@ -338,7 +355,10 @@ class ExportSTEPViewable(orca.script.ScriptPluginCapabilityBase):
                     "save path)"
                 )
         output_dir = target.parent
-        output_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            output_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            return _write_failure("STEP export failed", exc, output_dir)
 
         cancelled = {"value": False}
 
@@ -353,12 +373,18 @@ class ExportSTEPViewable(orca.script.ScriptPluginCapabilityBase):
             handle = _progress_dialog("Export STEP (viewable)")
         except Exception:
             handle = None
+        staging = _staging_dir(storage, "step")
+        stage_file = staging / "beads.step"
         try:
             summary = core["export_step_from_cache"](
-                cache_path, target, plugin_config, progress=progress
+                cache_path, stage_file, plugin_config, progress=progress
             )
+            core["copy_file"](stage_file, target)
+            summary["file"] = str(target)
+            summary["staged"] = str(stage_file)
+            shutil.rmtree(staging, ignore_errors=True)
         except Exception as exc:
-            return _failure("STEP export failed", exc)
+            return _write_failure("STEP export failed", exc, target.parent)
         finally:
             if handle is not None:
                 try:
@@ -387,28 +413,23 @@ class GCodeFEAPlugin(orca.base):
         # The wheel bundles the core, so its imports live under the plugin
         # folder and the Python runtime roots. Declaring them up front turns a
         # first-run flood of per-file prompts into one combined dialog.
-        orca.request_permissions(fs_read=_read_roots())
+        orca.request_permissions(process=_process_roots())
         orca.register_capability(CaptureSliceCache)
         orca.register_capability(ExportFEAGeometry)
         orca.register_capability(ExportSTEPViewable)
 
 
-def _read_roots() -> list[str]:
-    import site
+def _process_roots() -> list[str]:
+    """Native dialog helpers, when present, so spawning them asks once."""
 
-    roots = set()
-    for root in (sys.prefix, sys.base_prefix):
-        if root:
-            roots.add(str(root))
-    try:
-        roots.update(str(path) for path in site.getsitepackages())
-    except Exception:
-        pass
-    try:
-        roots.add(str(Path.home() / ".cache" / "uv"))
-    except Exception:
-        pass
-    return sorted(roots)
+    import shutil
+
+    roots = []
+    for name in ("zenity", "kdialog", "osascript", "powershell", "sh", "cmd"):
+        path = shutil.which(name)
+        if path:
+            roots.append(path)
+    return roots
 
 
 def _collect_paths(layer) -> list[dict]:
@@ -451,6 +472,14 @@ def _storage() -> Path:
     return storage
 
 
+def _staging_dir(storage: Path, name: str) -> Path:
+    path = storage / "staging" / name
+    if path.exists():
+        shutil.rmtree(path)
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
 def _cache_path(config: dict, storage: Path) -> Path:
     configured = str(config.get("cache_path", "") or "")
     if configured:
@@ -470,40 +499,49 @@ def _merged_config(capability) -> dict:
 
 
 def _core(config: dict) -> dict:
-    """Import the core, honouring an optional ``core_path`` configuration."""
+    """Resolve the core, preferring the wheel-bundled modules imported at load."""
+
+    if _core_config is not None:
+        return _core_bindings()
 
     core_path = str(config.get("core_path", "") or "")
     if core_path and core_path not in sys.path:
         sys.path.insert(0, core_path)
         importlib.invalidate_caches()
     try:
-        package = importlib.import_module("gcode_fea")
+        import gcode_fea.cache as cache_module
+        import gcode_fea.config as config_module
+        import gcode_fea.plugin_export as export_module
+        import gcode_fea.save_dialog as dialog_module
+        import gcode_fea.transfer as transfer_module
     except ImportError as exc:
         raise RuntimeError(
             "the gcode_fea core is not importable; install the GCode-FEA "
             "plugin wheel, or set 'core_path' to the repository src directory"
         ) from exc
+    globals().update(
+        _core_cache=cache_module,
+        _core_config=config_module,
+        _core_export=export_module,
+        _core_dialog=dialog_module,
+        _core_transfer=transfer_module,
+    )
+    return _core_bindings()
+
+
+def _core_bindings() -> dict:
     return {
-        "package": package,
-        "parse_config": importlib.import_module("gcode_fea.config").parse_config,
-        "model_from_probe_data": importlib.import_module(
-            "gcode_fea.cache"
-        ).model_from_probe_data,
-        "save_cache": importlib.import_module("gcode_fea.cache").save_cache,
-        "load_probe": importlib.import_module("gcode_fea.cache").load_probe,
-        "export_from_cache": importlib.import_module(
-            "gcode_fea.plugin_export"
-        ).export_from_cache,
-        "export_step_from_cache": importlib.import_module(
-            "gcode_fea.plugin_export"
-        ).export_step_from_cache,
-        "choose_save_file": importlib.import_module(
-            "gcode_fea.save_dialog"
-        ).choose_save_file,
-        "choose_directory": importlib.import_module(
-            "gcode_fea.save_dialog"
-        ).choose_directory,
-        "cache_status": importlib.import_module("gcode_fea.config").cache_status,
+        "parse_config": _core_config.parse_config,
+        "cache_status": _core_config.cache_status,
+        "model_from_probe_data": _core_cache.model_from_probe_data,
+        "save_cache": _core_cache.save_cache,
+        "load_probe": _core_cache.load_probe,
+        "export_from_cache": _core_export.export_from_cache,
+        "export_step_from_cache": _core_export.export_step_from_cache,
+        "choose_save_file": _core_dialog.choose_save_file,
+        "choose_directory": _core_dialog.choose_directory,
+        "copy_file": _core_transfer.copy_file,
+        "copy_directory": _core_transfer.copy_directory,
     }
 
 
@@ -525,3 +563,19 @@ def _failure(prefix: str, exc: BaseException) -> "orca.ExecutionResult":
     return orca.ExecutionResult.failure(
         orca.PluginResult.RecoverableError, f"{prefix}: {exc}"
     )
+
+
+def _write_failure(
+    prefix: str,
+    exc: BaseException,
+    location,
+) -> "orca.ExecutionResult":
+    text = str(exc)
+    if isinstance(exc, PermissionError) or "audited operation" in text:
+        return orca.ExecutionResult.failure(
+            orca.PluginResult.RecoverableError,
+            f"{prefix}: OrcaSlicer blocked writing to {location}. Accept the "
+            "permission prompt and run again, or choose a folder under your "
+            "home directory, temp, or a mounted drive. Details: " + text,
+        )
+    return _failure(prefix, exc)
