@@ -1,6 +1,6 @@
 [project]
 name = "gcode-fea"
-version = "0.0.1"
+version = "0.1.0"
 description = "Export as-deposited FFF bead mesostructure for finite element analysis"
 requires-python = ">=3.12"
 license = { text = "MIT" }

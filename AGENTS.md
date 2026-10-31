@@ -509,7 +509,7 @@ Phase 5 plugin (verified 2026-10-31, 2.5.0-beta build `345efec6`):
 ```bash
 python3 helper_scripts/build_plugin_wheel.py --out dist
 mkdir -p ~/.config/OrcaSlicer/orca_plugins/gcode_fea
-cp dist/gcode_fea_orca-0.0.1-py3-none-any.whl \
+cp dist/gcode_fea_orca-0.1.0-py3-none-any.whl \
   ~/.config/OrcaSlicer/orca_plugins/gcode_fea/
 python3 helper_scripts/orca_plugin_sync.py \
   --src plugins/gcode_fea --name gcode_fea   # single-file alternative
@@ -518,11 +518,11 @@ python3 helper_scripts/orca_plugin_sync.py \
 Then enable both capabilities in the Plugins window, slice once with the
 capture-enabled process preset (`tests/fixtures/profiles/process_gcode_fea.json`),
 and run **Export FEA Geometry** from Plugins or the Speed Dial. Outputs land in
-`plugin_data/gcode_fea_orca-0.0.1-py3-none-any/exports/`.
+`plugin_data/gcode_fea_orca-0.1.0-py3-none-any/exports/`.
 
 Observed on this build: the wheel is discovered and loaded, capture writes
 `cache/slice.json`, and the script exports the sidecar/report. The wheel preset
-reference must be the wheel stem (`gcode_fea_orca-0.0.1-py3-none-any;;Capture Slice Cache`).
+reference must be the wheel stem (`gcode_fea_orca-0.1.0-py3-none-any;;Capture Slice Cache`).
 The `psGCodePostProcess` seam was not dispatched during G-code export, so set
 `gcode_path` explicitly for process-informed interfaces.
 

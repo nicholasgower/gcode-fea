@@ -8,7 +8,7 @@ user-visible changes. The summary is written in plain text so it can also be
 pasted into the Orca Cloud plugin **Changelog** field, which OrcaSlicer shows as
 a Version / Date / Changes table.
 
-## 0.0.1 - 2026-10-31
+## 0.1.0 - 2026-10-31
 
 Initial release.
 

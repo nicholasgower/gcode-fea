@@ -35,7 +35,7 @@ populate it).
 ```bash
 python3 helper_scripts/build_plugin_wheel.py --out dist
 mkdir -p ~/.config/OrcaSlicer/orca_plugins/gcode_fea
-cp dist/gcode_fea_orca-0.0.1-py3-none-any.whl \
+cp dist/gcode_fea_orca-0.1.0-py3-none-any.whl \
    ~/.config/OrcaSlicer/orca_plugins/gcode_fea/
 ```
 
@@ -55,7 +55,7 @@ Activate it with `.install_state.json` or the Plugins window:
   ],
   "enabled": true,
   "installed_from": "local",
-  "installed_version": "0.0.1",
+  "installed_version": "0.1.0",
   "permissions": {"events": [], "fs_read": [], "fs_readwrite": [],
                   "network_http": [], "network_socket": [],
                   "process": [], "threading": []},
@@ -361,7 +361,7 @@ prompts cover.
 | Symptom | Cause | Fix |
 |---|---|---|
 | Plugin not listed | folder missing, wrong entry file, or disabled | one `.whl` or `.py` per folder; enable in Plugins |
-| `Local plugins required ... are missing` | preset reference does not match the plugin key | for wheels use `<wheel-stem>;;Capture Slice Cache`, e.g. `gcode_fea_orca-0.0.1-py3-none-any;;Capture Slice Cache`; for `.py` use the file stem |
+| `Local plugins required ... are missing` | preset reference does not match the plugin key | for wheels use `<wheel-stem>;;Capture Slice Cache`, e.g. `gcode_fea_orca-0.1.0-py3-none-any;;Capture Slice Cache`; for `.py` use the file stem |
 | Slice button blocked | referenced capability disabled or renamed | enable it in Plugins, or fix the preset reference |
 | `No slice cache yet` | export run before a capture | slice once; check the pipeline capability is enabled |
 | `core is not importable` | single-file install without the core | install the wheel, or set `core_path` to the repo `src` |

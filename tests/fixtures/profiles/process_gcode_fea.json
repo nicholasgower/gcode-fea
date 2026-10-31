@@ -5,7 +5,7 @@
   "layer_change_gcode": "G92 E0",
   "compatible_printers": [],
   "plugins": [
-    "gcode_fea_orca-0.0.1-py3-none-any;;Capture Slice Cache"
+    "gcode_fea_orca-0.1.0-py3-none-any;;Capture Slice Cache"
   ],
   "slicing_pipeline_plugin": [
     "Capture Slice Cache"
