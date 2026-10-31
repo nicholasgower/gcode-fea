@@ -271,6 +271,9 @@ Logs: `~/.config/OrcaSlicer/log/python_*.log` (tracebacks) and
 - Different beads are exported as separate bodies, not one unioned solid.
   Fusing them would require a boolean kernel; the planar writer intentionally
   preserves bead identity.
+- Beads with near-180° reversals (some zigzag infill) fall back to per-segment
+  solids because an unbounded miter would be invalid. Perimeters and normal
+  raster lines are one body.
 - There is no Pages tab or docked panel yet.
 - The cache stores one object per slice; multi-plate/multi-object aggregation is
   future work.
