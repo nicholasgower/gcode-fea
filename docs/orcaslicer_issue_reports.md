@@ -1,6 +1,6 @@
 # OrcaSlicer plugin-system issue reports
 
-Submitted reports:
+Submitted reports (all titles prefixed with `[2.5.0 beta]`):
 
 - https://github.com/OrcaSlicer/OrcaSlicer/issues/17100
 - https://github.com/OrcaSlicer/OrcaSlicer/issues/17101
