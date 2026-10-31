@@ -110,7 +110,8 @@ JSON. Defaults:
   "core_path": "",
   "cache_path": "",
   "output_dir": "",
-  "gcode_path": ""
+  "gcode_path": "",
+  "ask_output_dir": true
 }
 ```
 
@@ -130,6 +131,7 @@ JSON. Defaults:
 | `contacts` | run contact detection |
 | `core_path` | `src` directory for the single-file install |
 | `cache_path`, `output_dir`, `gcode_path` | overrides; blank means plugin storage |
+| `ask_output_dir` | ask for an output folder in the native file dialog |
 
 The capture capability has its own config: `mode`, `c_h`, `c_v`,
 `max_layers`, `cache_path`.
@@ -146,12 +148,15 @@ The capture capability has its own config: `mode`, `c_h`, `c_v`,
   "layer_range": null,
   "core_path": "",
   "cache_path": "",
-  "output_dir": ""
+  "output_dir": "",
+  "save_path": "",
+  "ask_save_path": true
 }
 ```
 
-It writes `exports/beads.step`. Defaults use the built-in planar writer, stride
-1, a 0.005 mm chord tolerance for curved sections, and the 150k-face preflight. Set `roi` or `layer_range` to keep a large part
+It writes `beads.step` where you choose, or in `exports/` when the dialog is
+disabled. Defaults use the built-in planar writer, stride 1, a 0.005 mm chord
+tolerance for curved sections, and the 150k-face preflight. Set `roi` or `layer_range` to keep a large part
 small; raise `max_step_faces` only if you accept the file size.
 
 ## Cache management and staleness
@@ -189,6 +194,34 @@ The 20 mm cube (390 beads) has about 427k faces with no simplification,
 `max_step_faces` (default 150,000). For the highest-quality analytic B-rep,
 install gmsh and set `step_engine: "gmsh"`; `auto` picks it when available.
 
+## Choosing the save location
+
+Both export capabilities ask for a location by default:
+
+- **Export FEA Geometry** uses a native folder chooser; all outputs go there.
+- **Export STEP (viewable)** uses a native Save As dialog for the `.step` file.
+
+Set `ask_output_dir: false` or `ask_save_path: false` to skip the dialog and use
+the configured/default path.
+
+OrcaSlicer's plugin API has no file-dialog call, so the plugin asks the
+desktop's standard helper in a separate process:
+
+| Platform | Helper |
+|---|---|
+| Linux/GNOME | `zenity --file-selection` |
+| Linux/KDE | `kdialog --getsavefilename` / `--getexistingdirectory` |
+| macOS | `osascript` (`choose file name`, `choose folder`) |
+| Windows | PowerShell + `System.Windows.Forms` dialogs |
+
+The first use prompts for process permission; accept it once. If no helper is
+installed (for example a minimal Linux desktop), the plugin falls back to the
+configured path and says so in the result message. Cancel in the dialog aborts
+the export with a “skipped” result.
+
+Using the system helper rather than `tkinter`/Qt is intentional: OrcaSlicer's
+plugin rules forbid a second GUI toolkit on the UI thread.
+
 ## Process data
 
 The plugin keeps the exported G-code at `cache/last.gcode` when the pipeline
@@ -207,7 +240,9 @@ Alternative: run `gcode-fea-process` on the cache with the G-code path.
 
 ## Permissions and auditing
 
-The plugin makes no network calls and starts no processes or threads.
+The plugin makes no network calls. It starts the native dialog helper process
+(`zenity`/`kdialog`/`osascript`/PowerShell) only when a save/folder dialog is
+requested, and starts no threads.
 
 - The wheel installs into the OrcaSlicer data directory; imports of the bundled
   core are declared up front with `orca.request_permissions(fs_read=[...])`, so
@@ -231,6 +266,8 @@ The plugin makes no network calls and starts no processes or threads.
 | STL/STEP missing | `write_stl`/`write_step` false | enable the flags |
 | STEP preflight refused | face count exceeds `max_step_faces` | set an ROI/layer range, increase `step_stride`, or raise the limit |
 | STEP import is slow | flat-faceted planar file is large | use ROI/layer range and `step_stride` 2–4 |
+| No save dialog appears | `zenity`/`kdialog` missing, or process permission denied | install a helper, accept the process prompt, or set `ask_save_path: false` / `ask_output_dir: false` |
+| Save dialog appears every run | `ask_save_path`/`ask_output_dir` true | disable in Config for a fixed path |
 | Cache stale | probe changed after capture | slice again |
 | PermissionError / audit block | prompt answered No | reinstall or edit `.install_state.json` permissions, then reload |
 | No process data | `gcode_path` empty or seam not dispatched | export G-code and set `gcode_path` |
@@ -261,6 +298,7 @@ Logs: `~/.config/OrcaSlicer/log/python_*.log` (tracebacks) and
 | Curved-section tolerance | Pass (3,052 → 734 faces at 0.005 mm, 1.3% volume) |
 | Planar STEP from the plugin | Pass (unit test; no gmsh needed) |
 | “Export STEP (viewable)” capability | Pass (unit test; writes `beads.step`) |
+| Native save/folder dialog integration | Unit-tested for zenity, kdialog, osascript, PowerShell; live zenity not exercised in this session |
 | `psGCodePostProcess` capture | Not dispatched in this build; explicit `gcode_path` used instead |
 | End-to-end on Windows/macOS | Not tested |
 

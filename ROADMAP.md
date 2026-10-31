@@ -233,11 +233,11 @@ The 2.5 build is the only plugin target (`src/slic3r/plugin` is absent at `v2.4.
 
 **Goal:** a usable OrcaSlicer experience.
 
-**Status (2026-10-31): complete for the Linux 2.5.0-beta build.** Wheel and single-file installs, capture + export capabilities, config, progress/cancel, cache staleness, permissions, a portable planar STEP writer with per-bead merging and chord-tolerance simplification, and the user guide are implemented. A GUI smoke test on build `345efec6` loaded the wheel, captured 390 beads/100 layers, and exported the sidecar/report without a terminal. The Pages tab is not implemented. See `docs/plugin_user_guide.md`.
+**Status (2026-10-31): complete for the Linux 2.5.0-beta build.** Wheel and single-file installs, capture + export capabilities, config, progress/cancel, native save/folder dialogs, cache staleness, permissions, a portable planar STEP writer with per-bead merging and chord-tolerance simplification, and the user guide are implemented. A GUI smoke test on build `345efec6` loaded the wheel, captured 390 beads/100 layers, and exported the sidecar/report without a terminal. The Pages tab is not implemented. See `docs/plugin_user_guide.md`.
 
 **Deliverables**
 
-- Script capabilities: "Export FEA Geometry" (sidecar/report/STL/STEP) and "Export STEP (viewable)" (cache-only STEP), both with progress and cancel. **Done.** STEP works without gmsh via the planar B-rep writer; overlapping segments are stitched into one body per bead, and `step_tolerance` reduces curved-surface polygons.
+- Script capabilities: "Export FEA Geometry" (sidecar/report/STL/STEP) and "Export STEP (viewable)" (cache-only STEP), both with progress, cancel, and native save/folder dialogs. **Done.** STEP works without gmsh via the planar B-rep writer; overlapping segments are stitched into one body per bead, and `step_tolerance` reduces curved-surface polygons.
 - Pages tab (optional): slice status, export history, report viewer. **Not done**; plugin storage and the report JSON cover status.
 - Config: defaults, ROI, modes, output formats, solver. **Done**; solver choice is covered by the benchmark/cohesive CLIs, not the plugin.
 - Cache management and stale-slice detection. **Done** via `slice_hash` and `source_hash`.

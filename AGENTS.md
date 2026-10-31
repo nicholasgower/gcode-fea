@@ -314,7 +314,7 @@ Default to region of interest for bead-resolved exports. Full-part bead B-rep is
 - Phase 2 defaults: analytic paper coupons, `paper_octagon` cross-section, voxel hex8 mesh at `<= 0.05 mm` when volume or contact height matters, Rankine criterion, 0.01% deletion localization. Do not claim the benchmark passes until a solver run is in `docs/`.
 - Phase 3 defaults: contact-model interface areas (never raw voxel faces), intralayer area scaled by the flat-side fraction when available, zero-thickness COH3D8 with constitutive thickness 1.0, Abaqus as the only end-to-end cohesive target, and cohesive cards flagged `calibrated=false` until measured.
 - Phase 4 defaults: process data from G-code (the plugin graph has none), plate-offset auto-alignment, two-time lumped cooling plus Arrhenius healing, `bond_quality` scaling strength and toughness, and an uncertainty envelope. Never present bond quality or the adhesion model as calibrated.
-- Phase 5 defaults: wheel bundles the core; script export runs on the UI thread with progress checkpoints; cache capture at `posSimplifyPath`; stale detection from `source_hash`; writes default to plugin storage. The wheel's preset reference is `<wheel-stem>;;<capability>`, so it includes the version.
+- Phase 5 defaults: wheel bundles the core; script export runs on the UI thread with progress checkpoints; cache capture at `posSimplifyPath`; stale detection from `source_hash`; writes default to plugin storage, with native save/folder dialogs via zenity/kdialog/osascript/PowerShell (`ask_save_path`/`ask_output_dir`). The wheel's preset reference is `<wheel-stem>;;<capability>`, so it includes the version.
 - STEP exports default to `step_engine=auto`: gmsh/OCCT when importable, otherwise the pure-Python planar B-rep writer. The planar writer stitches rings at every path vertex, so overlapping segment prisms become one body per bead (different beads remain separate bodies for interface identity; near-180-degree reversals fall back to per-segment solids). `step_tolerance` simplifies curved sections by chord deviation; use ROI/layer range, `step_stride`, and the `max_step_faces` preflight (default 150k) for large parts.
 - License: MIT for original project code (`LICENSE`); preserve `CREDITS.md`. The paper is CC BY 4.0; OrcaSlicer and the MaxEllis fork are AGPL-3.0. Do not copy AGPL code into the MIT core; review combined-work obligations before distributing a bundled plugin or modified OrcaSlicer. The Python project declares `license = { text = "MIT" }` in `pyproject.toml`.
 - Style: Python 3.12+, type hints, `ruff`/`black` (or the project's chosen formatter), `pytest`. Keep the core free of GUI and OrcaSlicer imports.
@@ -368,6 +368,7 @@ Don't:
 - Don't present `INITIAL_PLA_COHESIVE` as measured or calibrated, and don't use raw voxel face areas as cohesive areas.
 - Don't present the Phase 4 bond-quality model as predictive or calibrated, and don't hide its parameter uncertainty.
 - Don't run heavy export work without progress checkpoints, and don't claim a plugin flow works on a build until it has been exercised in that build.
+- Don't import a GUI toolkit in the adapter; use `orca.host.ui` or a native helper process for file dialogs.
 - Don't emit an unbounded STEP export from the plugin; use the face preflight and document the file-size/ROI trade-off.
 
 ## 15. Commands
