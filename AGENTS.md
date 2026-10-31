@@ -24,7 +24,7 @@ Open decisions are tracked in `ROADMAP.md`; do not silently resolve them in code
 Current:
 
 ```text
-AGENTS.md, ROADMAP.md, CREDITS.md, LICENSE, pyproject.toml
+AGENTS.md, ROADMAP.md, CHANGELOG.md, CREDITS.md, LICENSE, pyproject.toml
 sources/fracture_behavior/   # Seibel & Kiendl (2025) paper and license
 src/gcode_fea/               # core: model, cross-sections, cache, sweep, contacts, export, report, cli
 src/gcode_fea/solvers/       # element deletion, Abaqus/CalculiX writers, coupon/cohesive jobs
@@ -318,6 +318,7 @@ Default to region of interest for bead-resolved exports. Full-part bead B-rep is
 - STEP exports default to `step_engine=auto`: gmsh/OCCT when importable, otherwise the pure-Python planar B-rep writer. The planar writer stitches rings at every path vertex, so overlapping segment prisms become one body per bead (different beads remain separate bodies for interface identity; near-180-degree reversals fall back to per-segment solids). `step_tolerance` simplifies curved sections by chord deviation. `step_engine=merged` boolean-unions overlapping beads with Manifold3D (STEP viewing default) using the per-segment prisms, not mitred bead shells; `trim_overlaps` is an optional clipping fallback, not a substitute for union. Use ROI/layer range, `step_stride`, and the `max_step_faces` preflight (default 150k) for large parts.
 - License: MIT for original project code (`LICENSE`); preserve `CREDITS.md`. The paper is CC BY 4.0; OrcaSlicer and the MaxEllis fork are AGPL-3.0. Do not copy AGPL code into the MIT core; review combined-work obligations before distributing a bundled plugin or modified OrcaSlicer. The Python project declares `license = { text = "MIT" }` in `pyproject.toml`.
 - Style: Python 3.12+, type hints, `ruff`/`black` (or the project's chosen formatter), `pytest`. Keep the core free of GUI and OrcaSlicer imports.
+- Changelog: `CHANGELOG.md` uses one entry per released version, newest first, with version, date, and a short plain-text summary. Keep it aligned with the OrcaSlicer/Orca Cloud Changelog tab (Version / Date / Changes) and bump the plugin version in the PEP 723 block and wheel metadata together.
 
 ## 13. Validation gates
 
@@ -508,7 +509,7 @@ Phase 5 plugin (verified 2026-10-31, 2.5.0-beta build `345efec6`):
 ```bash
 python3 helper_scripts/build_plugin_wheel.py --out dist
 mkdir -p ~/.config/OrcaSlicer/orca_plugins/gcode_fea
-cp dist/gcode_fea_orca-0.1.0-py3-none-any.whl \
+cp dist/gcode_fea_orca-0.0.1-py3-none-any.whl \
   ~/.config/OrcaSlicer/orca_plugins/gcode_fea/
 python3 helper_scripts/orca_plugin_sync.py \
   --src plugins/gcode_fea --name gcode_fea   # single-file alternative
@@ -517,11 +518,11 @@ python3 helper_scripts/orca_plugin_sync.py \
 Then enable both capabilities in the Plugins window, slice once with the
 capture-enabled process preset (`tests/fixtures/profiles/process_gcode_fea.json`),
 and run **Export FEA Geometry** from Plugins or the Speed Dial. Outputs land in
-`plugin_data/gcode_fea_orca-0.1.0-py3-none-any/exports/`.
+`plugin_data/gcode_fea_orca-0.0.1-py3-none-any/exports/`.
 
 Observed on this build: the wheel is discovered and loaded, capture writes
 `cache/slice.json`, and the script exports the sidecar/report. The wheel preset
-reference must be the wheel stem (`gcode_fea_orca-0.1.0-py3-none-any;;Capture Slice Cache`).
+reference must be the wheel stem (`gcode_fea_orca-0.0.1-py3-none-any;;Capture Slice Cache`).
 The `psGCodePostProcess` seam was not dispatched during G-code export, so set
 `gcode_path` explicitly for process-informed interfaces.
 

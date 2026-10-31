@@ -15,6 +15,10 @@ Environment for all reports:
 - Plugin: local wheel `gcode_fea_orca-0.1.0-py3-none-any.whl` (MIT test exporter)
 - Logs: `~/.config/OrcaSlicer/log/debug_*.log`
 
+The reports below were filed against the then-current `0.1.0` wheel. The
+project's initial release is `0.0.1`; the `0.1.0` filenames and log lines are
+kept as historical evidence.
+
 ## 1. Local wheel plugin key includes the version, breaking presets on upgrade
 
 **Steps**

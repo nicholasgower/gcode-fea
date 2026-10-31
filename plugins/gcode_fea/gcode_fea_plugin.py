@@ -6,7 +6,7 @@
 # name = "GCode-FEA"
 # description = "Capture the sliced bead mesostructure and export FEA geometry, contacts, and interfaces."
 # author = "GCode-FEA"
-# version = "0.1.0"
+# version = "0.0.1"
 # ///
 """OrcaSlicer adapter for GCode-FEA.
 

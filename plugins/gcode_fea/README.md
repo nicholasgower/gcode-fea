@@ -9,7 +9,7 @@ graph and exports FEA geometry through the `gcode_fea` core.
   ```bash
   python3 helper_scripts/build_plugin_wheel.py --out dist
   mkdir -p ~/.config/OrcaSlicer/orca_plugins/gcode_fea
-  cp dist/gcode_fea_orca-0.1.0-py3-none-any.whl \
+  cp dist/gcode_fea_orca-0.0.1-py3-none-any.whl \
      ~/.config/OrcaSlicer/orca_plugins/gcode_fea/
   ```
 
@@ -24,6 +24,8 @@ graph and exports FEA geometry through the `gcode_fea` core.
   config.
 
 Full instructions: `docs/plugin_user_guide.md`.
+
+Release history: [CHANGELOG.md](../../CHANGELOG.md).
 
 The plugin is MIT-licensed. OrcaSlicer is AGPL-3.0; this adapter only uses the
 public `orca` API and copies no OrcaSlicer source.

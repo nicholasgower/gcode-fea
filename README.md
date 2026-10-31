@@ -77,13 +77,13 @@ You do not need to be a programmer to use the plugin, but the current beta is ai
 python3 helper_scripts/build_plugin_wheel.py --out dist
 ```
 
-This creates `dist/gcode_fea_orca-0.1.0-py3-none-any.whl`, which bundles the plugin and the core library.
+This creates `dist/gcode_fea_orca-0.0.1-py3-none-any.whl`, which bundles the plugin and the core library.
 
 **2. Install it**
 
 ```bash
 mkdir -p ~/.config/OrcaSlicer/orca_plugins/gcode_fea
-cp dist/gcode_fea_orca-0.1.0-py3-none-any.whl \
+cp dist/gcode_fea_orca-0.0.1-py3-none-any.whl \
    ~/.config/OrcaSlicer/orca_plugins/gcode_fea/
 ```
 
@@ -192,6 +192,7 @@ The core does **not** depend on OrcaSlicer. The adapter is deliberately thin: it
 - [Cohesive interfaces](docs/cohesive_interfaces.md) — interface extraction and cohesive decks
 - [Process-informed adhesion](docs/process_adhesion.md) — G-code process data and bond quality
 - [OrcaSlicer issue reports](docs/orcaslicer_issue_reports.md) — upstream beta issues found during development
+- [Changelog](CHANGELOG.md) — release history
 - [Development rules](AGENTS.md) — modeling assumptions and engineering conventions
 - [Roadmap](ROADMAP.md) — phases, decisions, and risks
 
