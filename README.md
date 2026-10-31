@@ -36,7 +36,7 @@ The JSON sidecar is the important part for research: the STEP file is just shape
 
 ## What it looks like
 
-These screenshots are actual STEP files exported by GCode-FEA and opened in SolidCraft, an independent CAD viewer.
+These screenshots are actual STEP files exported by GCode-FEA and opened in [SolidCraft](https://solidcraftcad.com/), an independent CAD viewer.
 
 **Planar export: every bead remains its own body**
 
