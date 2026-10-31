@@ -1,0 +1,40 @@
+{
+  "ok": true,
+  "probe": "tests/fixtures/phase0/phase0_probe_obj102.json",
+  "step": "tests/fixtures/phase0/phase0_bead.step",
+  "orcaslicer_version": "2.5.0-beta",
+  "object_id": 102,
+  "layer_print_z": 0.2,
+  "layer_height": 0.2,
+  "path_index": 2,
+  "segment_index": 26,
+  "role": "Bottom surface",
+  "nominal_width": 0.45691338181495667,
+  "derived_width": 0.413993032068118,
+  "width_delta_pct": -9.3935418517072,
+  "bead_height": 0.20000000298023224,
+  "length": 11.430060091497156,
+  "area_per_length": 0.08279860764741898,
+  "expected_volume": 0.9463930609022948,
+  "build_volume": 0.9463930609022948,
+  "step_volume": 0.9463930609014994,
+  "volume_rel_error": 8.404158987420716e-13,
+  "expected_bbox": [
+    -4.187522237793047,
+    -4.187521042543858,
+    0.0,
+    4.187456237793047,
+    4.1875210425438585,
+    0.20000000298023224
+  ],
+  "step_bbox": [
+    -4.187522337793219,
+    -4.187521142544,
+    -1e-07,
+    4.187456337793,
+    4.187521142544813,
+    0.20000010298
+  ],
+  "bbox_max_abs_error": 1.0000095418405408e-07,
+  "solid_count": 1
+}
