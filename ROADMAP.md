@@ -41,27 +41,32 @@ The 2.5 build is the only plugin target (`src/slic3r/plugin` is absent at `v2.4.
 
 **Goal:** prove the data path and toolchain on one bead.
 
+**Status (2026-10-31): complete.** The probe was discovered and loaded, ran at `posSimplifyPath`, and wrote one layer of `ExtrusionPath` data. The minimal bead STEP round-tripped through gmsh/OCCT as one solid with a `8.4e-13` relative volume error and `1e-7 mm` bounding-box error. See `docs/phase0_report.md`.
+
 **Deliverables**
 
-- A probe plugin installed under `~/.config/OrcaSlicer/orca_plugins/` that runs at `posSimplifyPath` and dumps one layer's `ExtrusionPath` data (points, width, height, `mm3_per_mm`, role).
-- A minimal bead sweep from that data.
-- A STEP export and import into the target FEA tool.
-- A headless CLI test path (verified: `--appimage-extract-and-run`, `--slice`, minimal no-inherit process) with fixture profiles and models.
-- Helper scripts: environment doctor, headless slice wrapper, plugin sync, with unit tests.
-- A written toolchain decision: OCCT/build123d vs. gmsh vs. mesh-first.
+- A probe plugin installed under `~/.config/OrcaSlicer/orca_plugins/` that runs at `posSimplifyPath` and dumps one layer's `ExtrusionPath` data (points, width, height, `mm3_per_mm`, role). **Done.**
+- A minimal bead sweep from that data. **Done** (`helper_scripts/phase0_bead.py`).
+- A STEP export and round-trip in gmsh/OCCT; commercial FEA import pending. **Partially done.**
+- A headless core CLI test path (`--appimage-extract-and-run`, `--slice`, minimal no-inherit process) with fixture profiles and models. **Done.** Plugin hooks are GUI-only in 2.5.0-beta.
+- Helper scripts: environment doctor, headless slice wrapper, plugin sync, Phase 0 bead builder, with unit tests. **Done** (bead builder verified, not unit-tested).
+- Toolchain decision: **gmsh/OCCT** for the Phase 0/Phase 1 prototype. `build123d` was not used because its dependency tree exceeded available disk space.
 
 **Acceptance**
 
-- The 2.5 plugin manager discovers the probe (`Found 1 plugin manifest`) and the hook runs on pinned build `345efec6`.
-- Bead dimensions and volume match the slicer within 0.1%.
-- The STEP imports, is watertight, and has the expected bounding box.
-- The probe does not block slicing; outputs land in plugin storage or a permitted export folder.
-- The headless test path is established and documented; `--help` and a test slice both return exit 0.
+- The 2.5 plugin manager discovers the probe (`Found 1 plugin manifest`) and the hook runs on pinned build `345efec6`. **Pass.**
+- Bead volume matches the deposited volume within 0.1%. **Pass** (`8.4e-13`). The nominal width differs from the volume-derived width by 9.4%; this is documented.
+- The STEP imports as one watertight solid and has the expected bounding box. **Pass in gmsh/OCCT;** commercial FEA import is pending.
+- The probe does not block slicing; outputs land in plugin storage or a permitted export folder. **Pass.**
+- The core headless path is established and documented; the plugin-hook path is GUI-only and documented. **Pass.**
 
-**Risks**
+**Risks / findings**
 
 - Plugin API churn; graph lifetime; scaled-coordinate mistakes; OCCT sweep issues.
 - The 2.5 default profile needs a `G92 E0` layer-change override; 2.4.2 system bundles are not loaded by 2.5, so use self-contained process fixtures; audit prompts may appear for outputs outside `~/.config/OrcaSlicer`; the 2.5 app has fresh profiles.
+- Plugin hooks do not run in the 2.5 headless CLI; GUI automation or a human is required for hook testing.
+- A sideloaded plugin needs `.install_state.json` activation, and a preset needs both `slicing_pipeline_plugin` and the `plugins` reference (`<plugin_key>;;<capability_name>`).
+- Slicer nominal width and volume-derived width can differ materially (9.4% in Phase 0); the cross-section must conserve `mm3_per_mm` and report the delta.
 
 ## Phase 1 — Core geometry
 
@@ -72,6 +77,7 @@ The 2.5 build is the only plugin target (`src/slic3r/plugin` is absent at `v2.4.
 - Slice-cache schema and reader/writer.
 - Cross-section solver for the rounded octagon/barrel; three volume modes.
 - Sweep/mesh generation for straight and curved paths; joins; caps.
+- gmsh/OCCT-backed STEP/mesh prototype behind an export interface.
 - Contact detection: intralayer and interlayer; contact area, normal, centroid, gap/overlap.
 - ROI: object, bbox, layer range, mesh volume.
 - STEP export: faceted and analytic; bead compound, fused, glued, envelope.
@@ -253,6 +259,8 @@ The 2.5 build is the only plugin target (`src/slic3r/plugin` is absent at `v2.4.
 | D11 | MCP role | Resolved | Optional agent tooling for 2.4.2; not a plugin dependency |
 | D12 | Reference printer | Resolved | Creality Ender 3 V2 Neo; use its OrcaSlicer profile for physical tests |
 | D13 | Project license | Resolved | MIT for original code and documentation; paper stays CC BY 4.0; third-party licenses remain |
+| D14 | Phase 0 toolchain | Resolved | gmsh/OCCT for the prototype; build123d not used due to dependency weight/disk |
+| D15 | Plugin hook execution | Resolved | GUI-only in 2.5.0-beta; CLI for core tests, GUI/manual for plugin hooks |
 
 ## Risk register
 
@@ -276,6 +284,9 @@ The 2.5 build is the only plugin target (`src/slic3r/plugin` is absent at `v2.4.
 | Ender 3 V2 Neo variability | geometry mismatch | controlled profile; n≥3; record filament/settings |
 | Measurement uncertainty | false conclusions | calibrated tools; SOP; report uncertainty |
 | Overhang/bridge droop | model error | quantify with coupons; flag/refine |
+| Plugin hooks GUI-only | no headless plugin CI | GUI automation; upstream CLI plugin mode; core tests stay headless |
+| Nominal vs derived width | geometry mismatch | volume-conserving cross-section; report the delta |
+| Sideload activation/reference | probe does not run | `.install_state.json` + `plugins` reference (`<plugin_key>;;<capability_name>`) |
 | Audit prompts outside `~/.config/OrcaSlicer` | export friction | plugin storage; G-code folder; declare permissions |
 | Two-build divergence (2.5 plugin vs 2.4.2 MCP) | confusion | pin builds; document roles; no plugin dependency on MCP |
 

@@ -15,7 +15,7 @@ The output is not the nominal CAD surface. It is the geometry the printer actual
 
 ## 2. Status
 
-Design phase. There is no implementation code yet. This document records the modeling assumptions, integration facts, and engineering rules that the implementation must follow. The phased plan is in `ROADMAP.md`.
+Phase 0 integration spike complete (2026-10-31). The probe plugin, the GUI slicing hook, and the minimal one-bead STEP path work; see `docs/phase0_report.md`. The core geometry pipeline is not implemented yet. This document records the modeling assumptions, integration facts, and engineering rules that the implementation must follow. The phased plan is in `ROADMAP.md`.
 
 Open decisions are tracked in `ROADMAP.md`; do not silently resolve them in code.
 
@@ -24,7 +24,14 @@ Open decisions are tracked in `ROADMAP.md`; do not silently resolve them in code
 Current:
 
 ```text
+AGENTS.md, ROADMAP.md, CREDITS.md, LICENSE
 sources/fracture_behavior/   # Seibel & Kiendl (2025) paper and license
+src/gcode_fea/               # package stubs
+plugins/phase0_probe/        # Phase 0 slicing-pipeline probe
+helper_scripts/              # env doctor, slice wrapper, plugin sync, Phase 0 bead builder
+tests/                       # helper tests and fixtures
+tests/fixtures/phase0/       # real probe JSON + minimal bead STEP/report
+docs/phase0_report.md        # Phase 0 results and findings
 ```
 
 Planned:
@@ -33,6 +40,7 @@ Planned:
 src/gcode_fea/               # core library: bead model, cross-sections, contacts, export
 src/gcode_fea/orca/          # thin OrcaSlicer plugin adapter
 src/gcode_fea/solvers/       # Abaqus/CalculiX templates and element-deletion helpers
+plugins/phase0_probe/        # Phase 0 slicing-pipeline probe plugin
 helper_scripts/              # env doctor, headless slice wrapper, plugin sync
 tests/                       # unit, integration, benchmark, regression
 tests/fixtures/profiles/     # machine/process/filament JSON for headless 2.5 CLI
@@ -118,6 +126,8 @@ Arc direction:
 
 If the requested area cannot be represented (e.g., too small for the chosen `w_t` and `h`), return a structured warning and a fallback cross-section; do not silently produce invalid geometry.
 
+The slicer's `width` is a target line width; `mm3_per_mm` is the deposited area. They are not the same quantity. In the Phase 0 probe, `width * height` was about 10% larger than `mm3_per_mm`. Always derive the cross-section from `mm3_per_mm` and report the difference from `width`; do not assume `A = width * height`.
+
 ## 7. Volume modes
 
 | Mode | Fixed inputs | Volume solves | Volume exact? | Use |
@@ -185,6 +195,15 @@ Plugin API facts for the pinned build (upstream documentation; no plugin hook ha
 - The 2.5 audit hook allows writes under `~/.config/OrcaSlicer`; use `orca.host.plugin.storage()` for caches and the G-code folder or a user-chosen path for exports. Other paths may prompt once.
 - Install the plugin under `~/.config/OrcaSlicer/orca_plugins/<plugin>/`. The loader scans at startup; reload or restart after adding or changing a plugin.
 - Pin the 2.5.0-beta build `345efec6`; the plugin API is experimental.
+
+**Phase 0 observed behavior (2026-10-31).**
+
+- The 2.5 headless CLI (`--slice`) does **not** initialize the Python plugin manager. Plugin hooks run in GUI mode only. Use the CLI for core/G-code tests and the GUI for plugin-hook tests.
+- A preset selects a pipeline plugin with both `slicing_pipeline_plugin` and the dynamic `plugins` array. The reference is `<plugin_key>;;<capability_name>` (for example `phase0_probe;;Phase0 Probe`), not the display name.
+- A sideloaded plugin must be activated: `.install_state.json` with `enabled: true` and the capability enabled, or the Plugins dialog. Discovery alone is not enough.
+- The probe wrote `~/.config/OrcaSlicer/orca_plugins/plugin_data/phase0_probe/phase0_probe_obj102.json`; the hook ran at `posSimplifyPath` and slicing completed.
+- Slicer nominal width can differ from the volume-derived width (9.4% on the default flow). Conserve `mm3_per_mm` and report the delta.
+- gmsh/OCCT is the Phase 0/Phase 1 prototype toolchain. `build123d` was attempted but its dependency tree exceeded available disk space; gmsh is much lighter.
 
 Architecture consequences:
 
@@ -357,6 +376,44 @@ Minimal process override (self-contained; no `inherits`, because 2.4.2 system bu
   "compatible_printers": []
 }
 ```
+
+Phase 0 probe (GUI; verified 2026-10-31):
+
+```bash
+python3 helper_scripts/orca_plugin_sync.py \
+  --src plugins/phase0_probe --name phase0_probe
+# Activate the sideloaded plugin with .install_state.json or the Plugins dialog.
+
+# Build a 3MF carrying the plugin reference and pipeline setting.
+/home/nicholas/Applications/OrcaSlicer_Linux_AppImage_Ubuntu2404_V2.5.0-beta.AppImage \
+  --appimage-extract-and-run \
+  --export-3mf /tmp/opencode/phase0.3mf \
+  --load-settings tests/fixtures/profiles/process_phase0.json \
+  tests/fixtures/models/cube.stl
+```
+
+Open the 3MF in the GUI, acknowledge **Customized Preset**, and click
+**Slice plate**. The 2.5 CLI does not initialize plugins. The hook writes
+`~/.config/OrcaSlicer/orca_plugins/plugin_data/phase0_probe/phase0_probe_obj*.json`.
+Then build and verify the bead:
+
+```bash
+uv run --with gmsh python helper_scripts/phase0_bead.py
+```
+
+Or reproduce from the checked-in Phase 0 probe without rerunning the GUI:
+
+```bash
+uv run --with gmsh python helper_scripts/phase0_bead.py \
+  --probe tests/fixtures/phase0/phase0_probe_obj102.json \
+  --step tests/fixtures/phase0/phase0_bead.step \
+  --report tests/fixtures/phase0/phase0_bead.report.json
+```
+
+The default run writes `out/phase0_bead.step` and
+`out/phase0_bead.report.json`; the fixture command rewrites the checked-in
+`tests/fixtures/phase0/` copies. See `docs/phase0_report.md` for the full
+results and acceptance checklist.
 
 Project commands (planned):
 

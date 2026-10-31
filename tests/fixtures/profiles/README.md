@@ -20,6 +20,21 @@ current defaults unless `--load-settings` / `--load-filaments` provide them.
 `tests/fixtures/models/cube.stl` is a **10 mm cube** (0–10 mm) used as a headless
 smoke test. Phase 2b physical coupons use a 20 mm cube.
 
+## Phase 0 probe fixture
+
+`process_phase0.json` adds:
+
+```json
+"plugins": ["phase0_probe;;Phase0 Probe"],
+"slicing_pipeline_plugin": ["Phase0 Probe"]
+```
+
+The `plugins` entry uses the plugin **key** (`phase0_probe`), not the display
+name. The sideloaded plugin must be activated with `.install_state.json` or the
+Plugins dialog. The 2.5 headless CLI does not initialize plugins, so this
+fixture is used from the GUI; the probe writes to plugin storage. See
+`docs/phase0_report.md`.
+
 ## Reproducibility caveat
 
 Because the process fixture inherits missing keys from the active default
