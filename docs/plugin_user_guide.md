@@ -231,10 +231,17 @@ desktop's standard helper in a separate process:
 | macOS | `osascript` (`choose file name`, `choose folder`) |
 | Windows | PowerShell + `System.Windows.Forms` dialogs |
 
-The first use prompts for process permission; accept it once. If no helper is
-installed (for example a minimal Linux desktop), the plugin falls back to the
-configured path and says so in the result message. Cancel in the dialog aborts
-the export with a “skipped” result.
+The plugin core is imported at plugin load (before any audited capability call),
+so it does not prompt for every Python module it reads. Exports are written to
+plugin storage, which OrcaSlicer already allows, then copied to your chosen
+location by a fixed `sh`/`cmd` helper. That avoids per-file write prompts and
+the `open ... without permission` error when you pick a directory outside
+OrcaSlicer's data folder.
+
+The first save/folder dialog and the first copy ask for process permission once;
+accept them. After that the commands are identical and the grants are reused.
+If you cancel a dialog, the export is skipped. If no dialog helper is installed,
+the plugin falls back to the configured path and says so.
 
 Using the system helper rather than `tkinter`/Qt is intentional: OrcaSlicer's
 plugin rules forbid a second GUI toolkit on the UI thread.
@@ -257,9 +264,11 @@ Alternative: run `gcode-fea-process` on the cache with the G-code path.
 
 ## Permissions and auditing
 
-The plugin makes no network calls. It starts the native dialog helper process
-(`zenity`/`kdialog`/`osascript`/PowerShell) only when a save/folder dialog is
-requested, and starts no threads.
+The plugin makes no network calls and starts no threads. It imports the core at
+plugin load, writes into plugin storage, and starts the native dialog helper
+(`zenity`/`kdialog`/`osascript`/PowerShell) plus a fixed copy helper
+(`sh`/`cmd`) only when exporting. Those process spawns are what the permission
+prompts cover.
 
 - The wheel installs into the OrcaSlicer data directory; imports of the bundled
   core are declared up front with `orca.request_permissions(fs_read=[...])`, so
@@ -284,6 +293,7 @@ requested, and starts no threads.
 | STEP preflight refused | face count exceeds `max_step_faces` | set an ROI/layer range, increase `step_stride`, or raise the limit |
 | STEP import is slow | flat-faceted planar file is large | use ROI/layer range and `step_stride` 2–4 |
 | No save dialog appears | `zenity`/`kdialog` missing, or process permission denied | install a helper, accept the process prompt, or set `ask_save_path: false` / `ask_output_dir: false` |
+| `open ... without permission` when saving outside plugin storage | old direct-write path or a denied audit prompt | update to this build (staged export + copy helper), accept the process prompt, and run again |
 | `trim_overlaps requires Shapely` | CLI/core environment lacks Shapely | install `shapely>=2.0`, use the plugin wheel, or disable `trim_overlaps` |
 | Save dialog appears every run | `ask_save_path`/`ask_output_dir` true | disable in Config for a fixed path |
 | Cache stale | probe changed after capture | slice again |
@@ -318,6 +328,7 @@ Logs: `~/.config/OrcaSlicer/log/python_*.log` (tracebacks) and
 | “Export STEP (viewable)” capability | Pass (unit test; writes `beads.step`) |
 | Native save/folder dialog integration | Unit-tested for zenity, kdialog, osascript, PowerShell; live zenity not exercised in this session |
 | Wall-overlap trimming | Pass (synthetic wall/infill, Phase 0 probe: 27 split pieces, −10.8% volume) |
+| Export to an arbitrary folder via staged copy | Pass (unit tests; copy helper uses a constant command) |
 | `psGCodePostProcess` capture | Not dispatched in this build; explicit `gcode_path` used instead |
 | End-to-end on Windows/macOS | Not tested |
 

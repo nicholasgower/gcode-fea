@@ -233,7 +233,7 @@ The 2.5 build is the only plugin target (`src/slic3r/plugin` is absent at `v2.4.
 
 **Goal:** a usable OrcaSlicer experience.
 
-**Status (2026-10-31): complete for the Linux 2.5.0-beta build.** Wheel and single-file installs, capture + export capabilities, config, progress/cancel, native save/folder dialogs, cache staleness, permissions, a portable planar STEP writer with per-bead merging and chord-tolerance simplification, and the user guide are implemented. A GUI smoke test on build `345efec6` loaded the wheel, captured 390 beads/100 layers, and exported the sidecar/report without a terminal. The Pages tab is not implemented. See `docs/plugin_user_guide.md`.
+**Status (2026-10-31): complete for the Linux 2.5.0-beta build.** Wheel and single-file installs, capture + export capabilities, config, progress/cancel, native save/folder dialogs with staged copying for arbitrary folders, cache staleness, permissions, a portable planar STEP writer with per-bead merging and chord-tolerance simplification, and the user guide are implemented. A GUI smoke test on build `345efec6` loaded the wheel, captured 390 beads/100 layers, and exported the sidecar/report without a terminal. The Pages tab is not implemented. See `docs/plugin_user_guide.md`.
 
 **Deliverables**
 
