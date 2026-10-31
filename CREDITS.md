@@ -68,8 +68,12 @@ This project also depends on or is developed alongside:
 - **OrcaSlicer** — the slicer targeted by the plugin. https://github.com/OrcaSlicer/OrcaSlicer — AGPL-3.0-only.
 - **MaxEllis OrcaSlicer fork** — the build that provides the Remote API used by the optional MCP tooling. https://github.com/MaxEllis/OrcaSlicer — AGPL-3.0-only.
 - **orcaslicer-mcp** — the optional MCP server used during development. https://github.com/MaxEllis/orcaslicer-mcp — AGPL-3.0-only.
+- **gmsh** — Phase 0 STEP construction and meshing prototype. https://gmsh.info — GPL-2.0-or-later.
+- **OpenCASCADE (OCCT)** — B-rep kernel used through gmsh. https://dev.opencascade.org — LGPL-2.1 with exception.
 
-The paper's CC BY 4.0 license applies to the paper and its included material. This project's original code and documentation are MIT-licensed; see `LICENSE`. OrcaSlicer and the MaxEllis fork are AGPL-3.0-only; the plugin runs inside OrcaSlicer via its plugin API, so review AGPL obligations before distributing a bundled plugin or a modified OrcaSlicer. Audit all third-party dependency licenses before release.
+The paper's CC BY 4.0 license applies to the paper and its included material. This project's original code and documentation are MIT-licensed; see `LICENSE`. OrcaSlicer and the MaxEllis fork are AGPL-3.0-only; the plugin runs inside OrcaSlicer via its plugin API, so review AGPL obligations before distributing a bundled plugin or a modified OrcaSlicer.
+
+Phase 0 uses **gmsh**, which is GPL-2.0-or-later, as a development/prototype dependency. The MIT core must not bundle or link GPL code without a licensing review. The release path should use an LGPL OCCT binding or a permissively licensed mesher. Audit all third-party dependency licenses before release.
 
 ## Attribution in derived work
 
