@@ -1,0 +1,13 @@
+{
+  "type": "process",
+  "name": "Phase 0 Probe",
+  "from": "user",
+  "layer_change_gcode": "G92 E0",
+  "compatible_printers": [],
+  "plugins": [
+    "phase0_probe;;Phase0 Probe"
+  ],
+  "slicing_pipeline_plugin": [
+    "Phase0 Probe"
+  ]
+}
