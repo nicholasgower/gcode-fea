@@ -177,6 +177,24 @@ class StepOnlyExportTests(unittest.TestCase):
             self.assertTrue(target.exists())
             self.assertLess(summary["volume_relative_error"], 0.05)
 
+    def test_step_trim_overlaps(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "out"
+            export_from_probe(PROBE, out, PluginConfig(resolution=0.2))
+            summary = export_step_from_cache(
+                out / "slice_cache.json",
+                Path(tmp) / "trimmed.step",
+                PluginConfig(
+                    step_engine="planar",
+                    step_tolerance=0.005,
+                    trim_overlaps=True,
+                ),
+            )
+            self.assertIsNotNone(summary["trim"])
+            self.assertGreater(summary["trim"]["trimmed_beads"], 0)
+            self.assertGreater(summary["trim"]["split_beads"], 1)
+            self.assertTrue(Path(summary["file"]).exists())
+
     def test_step_preflight(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp) / "out"
