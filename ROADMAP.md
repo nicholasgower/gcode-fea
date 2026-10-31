@@ -35,7 +35,7 @@ Two OrcaSlicer builds are installed; no Flatpak remains.
 - Version 2.5.0-beta build `345efec6`.
 - Plugin manager verified active in the launch log: `~/.config/OrcaSlicer/orca_plugins` was created and discovery found 0 plugins; Python 3.12.13, bundled `uv`, and the audit hook are active.
 - Config and logs: `~/.config/OrcaSlicer`.
-- Headless CLI is still unverified: `--help` started GUI mode. Resolve this before the integration harness by trying the extracted `usr/bin/orca-slicer`, a `--slice` invocation, or the 2.5.0-beta Flatpak.
+- Headless CLI verified: use the `--appimage-extract-and-run` flag. The `APPIMAGE_EXTRACT_AND_RUN=1` environment-variable path started GUI mode and did not pass arguments. Headless slicing works with a minimal no-inherit process containing `layer_change_gcode: "G92 E0"`; the default profile fails relative-extruder validation without it.
 - The app currently has fresh `Default Setting` / `Default Printer` / `Default Filament` profiles. Use checked-in fixtures or migrate the old Flatpak profiles.
 
 **Secondary MCP target:** `/home/nicholas/Applications/OrcaSlicer-MCP-2.4.2-mcp.13-linux-x64.AppImage`
@@ -47,6 +47,15 @@ The 2.5 build is the only plugin target (`src/slic3r/plugin` is absent at `v2.4.
 
 The project-local `opencode.json` configures `orcaslicer-mcp` (`uvx orcaslicer-mcp`). It connects, but its tools return `ORCA_API_TOKEN is required` until the 2.4.2-mcp.13 AppImage is running with the Remote API enabled and the token is exported in OpenCode's environment. The stock 2.5.0-beta build does not expose the fork's Remote API, so the MCP cannot drive it.
 
+**Reference printer for physical tests:** Creality Ender 3 V2 Neo.
+
+- 220 × 220 × 250 mm build volume; 0.4 mm nozzle; 1.75 mm filament; Bowden extruder.
+- Marlin 2.0.8.3 on a 4.2.2 board; CR Touch; max nozzle 250–260 °C, bed 100 °C.
+- Practical layer height 0.1–0.4 mm; typical speed ~50 mm/s (max 120 mm/s).
+- PLA/PETG/ABS; use PLA for the paper benchmark.
+
+All physical coupons must fit the bed and use the Ender 3 V2 Neo OrcaSlicer profile. Record filament, temperatures, fan, speed, flow, and layer height for every test. The paper's Raise3D Pro2 data is a starting point, not a universal calibration.
+
 ## Phase 0 — Integration spike
 
 **Goal:** prove the data path and toolchain on one bead.
@@ -56,7 +65,7 @@ The project-local `opencode.json` configures `orcaslicer-mcp` (`uvx orcaslicer-m
 - A probe plugin installed under `~/.config/OrcaSlicer/orca_plugins/` that runs at `posSimplifyPath` and dumps one layer's `ExtrusionPath` data (points, width, height, `mm3_per_mm`, role).
 - A minimal bead sweep from that data.
 - A STEP export and import into the target FEA tool.
-- A headless CLI test path (or a documented GUI-only path) with fixture profiles and models.
+- A headless CLI test path (verified: `--appimage-extract-and-run`, `--slice`, minimal no-inherit process) with fixture profiles and models.
 - A written toolchain decision: OCCT/build123d vs. gmsh vs. mesh-first.
 
 **Acceptance**
@@ -65,12 +74,12 @@ The project-local `opencode.json` configures `orcaslicer-mcp` (`uvx orcaslicer-m
 - Bead dimensions and volume match the slicer within 0.1%.
 - The STEP imports, is watertight, and has the expected bounding box.
 - The probe does not block slicing; outputs land in plugin storage or a permitted export folder.
-- The headless test path is established, or the GUI-only workflow is documented.
+- The headless test path is established and documented; `--help` and a test slice both return exit 0.
 
 **Risks**
 
 - Plugin API churn; graph lifetime; scaled-coordinate mistakes; OCCT sweep issues.
-- The 2.5 AppImage CLI entrypoint is unverified; audit prompts may appear for outputs outside `~/.config/OrcaSlicer`; the 2.5 app has fresh profiles.
+- The 2.5 default profile needs a `G92 E0` layer-change override; 2.4.2 system bundles are not loaded by 2.5, so use self-contained process fixtures; audit prompts may appear for outputs outside `~/.config/OrcaSlicer`; the 2.5 app has fresh profiles.
 
 ## Phase 1 — Core geometry
 
@@ -124,6 +133,45 @@ The project-local `opencode.json` configures `orcaslicer-mcp` (`uvx orcaslicer-m
 - Calibration mismatch between the paper's reduced-area model and the volume-conserving model.
 - Mesh convergence and runtime.
 - Solver-specific element deletion/localization.
+
+## Phase 2b — Physical geometry validation (Ender 3 V2 Neo)
+
+**Goal:** measure the as-printed geometry and compare it with the exported bead model on the reference printer.
+
+**Coupons**
+
+- 20 × 20 × 20 mm cube at 100% rectilinear infill (better mass signal than a 10 mm cube).
+- Thin-wall box (one or two perimeters).
+- Overhang/bridge test.
+- Cross-section coupon (single wall / 100% infill) for bead width, height, and contact lengths.
+- Optional: 0/30/45/60/90° tensile coupons for the paper benchmark.
+
+**Measurements**
+
+- Mass with a calibrated scale; compare with predicted volume × filament density.
+- Outer dimensions after cooling with calipers/micrometer; compare with the predicted envelope and nominal CAD.
+- Cross-section under a microscope: bead width, height, `c_h`, `c_v`, void fraction.
+- Overhang/bridge sag and voiding; compare with the no-droop assumption.
+- Record the exact Ender 3 V2 Neo profile, filament, temperatures, fan, speed, flow, and layer height.
+
+**Deliverables**
+
+- Printable coupon set with slicer profiles and G-code.
+- Ender 3 V2 Neo machine/process/filament profiles checked into `tests/fixtures/profiles/`.
+- Measurement SOP and raw data.
+- `docs/physical_validation.md` comparing measured vs. predicted geometry and contact statistics.
+- Calibrated `c_h`/`c_v` starting values for the Ender 3 V2 Neo.
+
+**Acceptance**
+
+- Mass/volume within 1–3% after exclusions; outer dimensions within ±0.1–0.2 mm or one line width.
+- Bead width/height within ~10%; `c_h`/`c_v` within ~15%; deviations explained.
+- Overhang/bridge error quantified, not assumed away.
+- At least three replicates per condition; scatter reported.
+
+**Risks**
+
+- Printer/filament variability; moisture; bed leveling; flow calibration; measurement uncertainty; destructive sectioning time.
 
 ## Phase 3 — Cohesive interfaces
 
@@ -182,6 +230,7 @@ The project-local `opencode.json` configures `orcaslicer-mcp` (`uvx orcaslicer-m
 - Config: defaults, ROI, modes, output formats, solver.
 - Cache management and stale-slice detection.
 - Install/packaging: `.py` or `.whl`; dependencies; permissions.
+- Include `LICENSE` and `CREDITS.md`; document the MIT/AGPL boundary for the bundled plugin.
 - Docs: user guide, troubleshooting, examples.
 
 **Acceptance**
@@ -199,9 +248,10 @@ The project-local `opencode.json` configures `orcaslicer-mcp` (`uvx orcaslicer-m
 
 - **Performance:** bead count, triangles, file size, wall time; budgets per phase.
 - **Validation:** volume, envelope, watertightness, STEP import, benchmark, regression.
+- **Physical validation:** Ender 3 V2 Neo coupons, metrology, cross-sections, replicate scatter.
 - **Plugin testing:** unit (core), integration (2.5 CLI + fixtures), plugin discovery/smoke (2.5 GUI/logs), GUI smoke (manual).
 - **Documentation:** schema, assumptions, calibration, troubleshooting.
-- **Licensing:** OrcaSlicer AGPL-3.0; OCCT LGPL; gmsh GPL; dependency audit before distribution.
+- **Licensing:** project MIT for original code; OrcaSlicer/MaxEllis fork AGPL-3.0; OCCT LGPL; gmsh GPL; audit combined-work and dependency obligations before distribution.
 - **CI:** lint, unit tests, small integration fixtures; benchmark optional/nightly.
 
 ## Decision log
@@ -217,8 +267,10 @@ The project-local `opencode.json` configures `orcaslicer-mcp` (`uvx orcaslicer-m
 | D7 | Dependencies | Open | OCCT/build123d or gmsh; audit licenses |
 | D8 | Coordinate frame | Open | Printer frame, Z up; optional Y-up transform |
 | D9 | Plugin target | Resolved | OrcaSlicer 2.5.0-beta build `345efec6`; 2.4.2-mcp.13 fork is the secondary MCP target |
-| D10 | Headless CLI path | Open | Try extracted `usr/bin/orca-slicer`, `--slice`, or the 2.5.0-beta Flatpak |
+| D10 | Headless CLI path | Resolved | `--appimage-extract-and-run` + `--slice` + minimal no-inherit process with `G92 E0` |
 | D11 | MCP role | Resolved | Optional agent tooling for 2.4.2; not a plugin dependency |
+| D12 | Reference printer | Resolved | Creality Ender 3 V2 Neo; use its OrcaSlicer profile for physical tests |
+| D13 | Project license | Resolved | MIT for original code and documentation; paper stays CC BY 4.0; third-party licenses remain |
 
 ## Risk register
 
@@ -234,16 +286,20 @@ The project-local `opencode.json` configures `orcaslicer-mcp` (`uvx orcaslicer-m
 | Solver-specific deletion | non-portable | templates; neutral mesh + scripts |
 | G-code fallback data loss | wrong widths/roles | prefer graph; parse comments; warn |
 | Overhang/droop | local error | flag; no-droop assumption; future sag model |
-| Licensing | distribution blocked | audit dependencies early |
-| 2.5 AppImage CLI unverified | slow headless tests | extracted binary; `--slice`; 2.5 Flatpak |
+| License compatibility (MIT + AGPL) | distribution blocked | keep core independent; audit combined-work and dependency obligations early |
+| Default profile relative-E validation | headless slice fails | minimal no-inherit process with `layer_change_gcode: "G92 E0"` |
+| 2.4.2 bundles not loaded by 2.5 | preset resolution fails | self-contained process fixtures; 2.5 bundles or datadir |
 | Fresh 2.5 profiles | test setup friction | checked-in fixtures; migrate old profiles |
+| Ender 3 V2 Neo variability | geometry mismatch | controlled profile; n≥3; record filament/settings |
+| Measurement uncertainty | false conclusions | calibrated tools; SOP; report uncertainty |
+| Overhang/bridge droop | model error | quantify with coupons; flag/refine |
 | Audit prompts outside `~/.config/OrcaSlicer` | export friction | plugin storage; G-code folder; declare permissions |
 | Two-build divergence (2.5 plugin vs 2.4.2 MCP) | confusion | pin builds; document roles; no plugin dependency on MCP |
 
 ## Definition of done
 
 - **v0.1 (geometry):** Phase 0–1 complete; plugin discovery/hook smoke test on 2.5.0-beta; ROI STEP + sidecar + report; volume/envelope/watertight gates pass; docs and tests.
-- **v0.2 (benchmark):** Phase 2 complete; paper comparison documented.
+- **v0.2 (benchmark + physical geometry):** Phase 2 and 2b complete; paper comparison and Ender 3 V2 Neo coupon measurements documented.
 - **v0.3 (adhesion):** Phase 3 complete; cohesive workflow + solver template.
 - **v1.0 (plugin):** Phase 5 complete; end-to-end OrcaSlicer UX; docs; packaging.
 

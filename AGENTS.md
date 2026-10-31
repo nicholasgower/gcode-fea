@@ -146,8 +146,8 @@ As of the 2.5-era plugin API (verify against the pinned OrcaSlicer version):
 - Embedded Python 3.12.13 with a bundled `uv`.
 - Plugin manager verified active in the launch log: `~/.config/OrcaSlicer/orca_plugins` was created and discovery found 0 plugins.
 - Config and logs: `~/.config/OrcaSlicer`; plugin stderr: `~/.config/OrcaSlicer/log/python_*.log`.
-- The `--help` invocation started GUI mode, so the headless CLI entrypoint is still unverified. Try the extracted `usr/bin/orca-slicer`, a `--slice` invocation, or the 2.5.0-beta Flatpak before building the integration harness.
-- In restricted shells, use `APPIMAGE_EXTRACT_AND_RUN=1` if FUSE is unavailable.
+- Headless CLI verified: use the `--appimage-extract-and-run` flag. The `APPIMAGE_EXTRACT_AND_RUN=1` environment-variable path started GUI mode and did not pass arguments. See section 15 for the commands.
+- Headless slicing verified with a minimal no-inherit process override containing `"layer_change_gcode": "G92 E0"`. The default profile fails relative-extruder validation until that override is applied.
 
 **Secondary MCP target:** `/home/nicholas/Applications/OrcaSlicer-MCP-2.4.2-mcp.13-linux-x64.AppImage`
 
@@ -156,6 +156,16 @@ As of the 2.5-era plugin API (verify against the pinned OrcaSlicer version):
 - `--help` and `--info` were verified with `APPIMAGE_EXTRACT_AND_RUN=1`.
 
 **MCP tooling.** The project-local `opencode.json` configures the `orcaslicer` MCP server (`uvx orcaslicer-mcp`). It connects, but its tools require the 2.4.2-mcp.13 fork's Remote API token. Launch that AppImage, enable **Preferences → Remote API**, copy the token, and set `ORCA_API_TOKEN` in the environment that launches OpenCode. `ORCA_API_URL` defaults to `http://127.0.0.1:13130`. The stock 2.5.0-beta build does not expose the fork's Remote API, so the MCP server cannot drive it; the plugin does not depend on the MCP.
+
+**Reference hardware for physical tests.** The printer is a Creality Ender 3 V2 Neo:
+
+- 220 × 220 × 250 mm build volume.
+- 0.4 mm nozzle, 1.75 mm filament, Bowden extruder.
+- Marlin 2.0.8.3 on a 4.2.2 board, CR Touch, max nozzle 250–260 °C, bed 100 °C.
+- Practical layer height 0.1–0.4 mm; typical speed ~50 mm/s, max 120 mm/s.
+- PLA/PETG/ABS supported; use PLA for the paper benchmark.
+
+All physical validation coupons must fit this bed, use the Ender 3 V2 Neo OrcaSlicer profile, and be sliced for Marlin. Record the exact filament, nozzle, temperatures, fan, speed, flow, and layer height with every test. Check the machine/process/filament profiles into `tests/fixtures/profiles/` when the physical test campaign starts. Do not use a generic printer profile for physical validation. The paper used a Raise3D Pro2 (0.4 mm, 0.2 mm layers, PLA, 200/60 °C, 30 mm/s), so its `c_h`/`c_v` and material data are starting points, not universal constants.
 
 Plugin API facts for the pinned build:
 
@@ -260,6 +270,8 @@ Default to region of interest for bead-resolved exports. Full-part bead B-rep is
 - Performance: measure bead count, triangles, file size, and wall time. Set and update budgets in `ROADMAP.md`.
 - Tests: unit tests for cross-sections and contacts; integration tests for small slices; plugin discovery/hook smoke tests in 2.5; benchmark tests for the paper; regression tests for golden volumes/hashes.
 - OrcaSlicer paths: config/plugins/logs under `~/.config/OrcaSlicer`; plugin target 2.5.0-beta build `345efec6`; MCP target 2.4.2-mcp.13.
+- Reference printer: Creality Ender 3 V2 Neo. Use its OrcaSlicer profile for physical tests and record the exact print settings with each coupon.
+- License: MIT for original project code (`LICENSE`); preserve `CREDITS.md`. The paper is CC BY 4.0; OrcaSlicer and the MaxEllis fork are AGPL-3.0. Do not copy AGPL code into the MIT core; review combined-work obligations before distributing a bundled plugin or modified OrcaSlicer. When the Python project skeleton is created, declare `license = { text = "MIT" }` in `pyproject.toml`.
 - Style: Python 3.12+, type hints, `ruff`/`black` (or the project's chosen formatter), `pytest`. Keep the core free of GUI and OrcaSlicer imports.
 
 ## 13. Validation gates
@@ -275,6 +287,7 @@ A change is not done until:
 7. **Reproducibility:** the same slice + config produces the same report hash (or stable IDs and volume table).
 8. **Plugin discovery:** the 2.5 plugin manager finds the plugin (`Found 1 plugin manifest`) and the `posSimplifyPath` hook runs on pinned build `345efec6`.
 9. **Permissions:** outputs go to plugin storage or a permitted export folder; any audit prompt is expected and documented.
+10. **Physical geometry:** on the Ender 3 V2 Neo, coupon mass/volume, outer dimensions, and cross-section/contact measurements are within the agreed tolerances; deviations and their likely causes are reported.
 
 ## 14. Agent do / don't
 
@@ -288,19 +301,54 @@ Do:
 - Add tests with every geometry or schema change.
 - Pin/verify the OrcaSlicer version before relying on a binding: 2.5.0-beta build `345efec6` for the plugin; 2.4.2-mcp.13 fork for the MCP.
 - Test the plugin in the 2.5 app, not the 2.4.2 MCP fork.
+- Record the Ender 3 V2 Neo profile and exact print settings with every physical coupon.
+- Keep `LICENSE` and `CREDITS.md` current when adding code or third-party material.
 
 Don't:
 
 - Don't hardcode material properties, `c_v`, or printer settings.
+- Don't use a generic printer profile for physical validation.
+- Don't treat the paper's `c_v` or material data as universal; recalibrate on the Ender 3 V2 Neo.
+- Don't copy AGPL-licensed OrcaSlicer code into the MIT core without reviewing license compatibility.
 - Don't default to a whole-part bead B-rep.
 - Don't silently union beads and lose interface identity.
 - Don't claim the paper benchmark passes until the comparison is in `docs/`.
 - Don't import `orca` in the core or in tests that should run headless.
 - Don't rely on experimental plugin behavior without an adapter and a version check.
 
-## 15. Commands (planned)
+## 15. Commands
 
-These are targets; update them when the project skeleton exists.
+Project commands are targets; update them when the project skeleton exists. The OrcaSlicer 2.5 headless commands below are verified.
+
+Local OrcaSlicer 2.5 headless commands (verified 2026-10-31):
+
+```bash
+# CLI help
+/home/nicholas/Applications/OrcaSlicer_Linux_AppImage_Ubuntu2404_V2.5.0-beta.AppImage \
+  --appimage-extract-and-run --help
+
+# Slice a test cube with the default machine/filament and a minimal process override
+mkdir -p out
+/home/nicholas/Applications/OrcaSlicer_Linux_AppImage_Ubuntu2404_V2.5.0-beta.AppImage \
+  --appimage-extract-and-run \
+  --slice 0 --outputdir out --logfile out/orca.log \
+  --load-settings tests/fixtures/profiles/process_headless.json \
+  tests/fixtures/models/cube.stl
+```
+
+Minimal process override (self-contained; no `inherits`, because 2.4.2 system bundles are not loaded by 2.5):
+
+```json
+{
+  "type": "process",
+  "name": "Headless",
+  "from": "user",
+  "layer_change_gcode": "G92 E0",
+  "compatible_printers": []
+}
+```
+
+Project commands (planned):
 
 ```bash
 uv sync
@@ -313,6 +361,7 @@ uv run gcode-fea validate out/cube.report.json
 ## 16. References
 
 - Seibel, S., Kiendl, J. (2025). *A finite element approach for modelling the fracture behaviour of unidirectional FFF-printed parts.* Progress in Additive Manufacturing 10:6981–6992. https://doi.org/10.1007/s40964-025-01021-8. Local copy: `sources/fracture_behavior/fracture_behavior_FFF.pdf` (CC BY 4.0).
+- Attribution and credits: `CREDITS.md` (project MIT license, paper citation, CC BY 4.0 notice, changes made, software credits).
 - OrcaSlicer plugin system: https://www.orcaslicer.com/wiki/developer_reference/plugin_development/plugin_system.html
 - OrcaSlicer plugin development: https://www.orcaslicer.com/wiki/developer_reference/plugin_development/plugin_development.html
 - OrcaSlicer slicing API: https://www.orcaslicer.com/wiki/developer_reference/plugin_development/api_reference/slicing.html
