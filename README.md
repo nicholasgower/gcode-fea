@@ -151,6 +151,28 @@ python3 helper_scripts/step_budget.py \
 python3 helper_scripts/plugin_permission_audit.py
 ```
 
+## Releasing a new plugin version
+
+Maintainers publish plugin builds to GitHub Releases:
+
+1. Bump `version` in both `pyproject.toml` and the plugin PEP 723 metadata.
+2. Add a matching `## <version> - YYYY-MM-DD` section to `CHANGELOG.md`.
+3. Commit and push the changes.
+4. Run the release helper:
+
+```bash
+# Validate the version, changelog, repository state, and release plan.
+python3 helper_scripts/release_plugin.py --dry-run
+
+# Run tests, build the wheel, create the tag/release, and upload the wheel.
+python3 helper_scripts/release_plugin.py
+```
+
+The script requires a clean working tree and an authenticated `gh` CLI. It uses
+the matching changelog section as the GitHub release notes and uploads
+`gcode_fea_orca-<version>-py3-none-any.whl`. Use `--draft`, `--prerelease`,
+`--skip-tests`, `--notes-file`, `--tag`, or `--repo` when needed.
+
 ## Current status
 
 The core geometry pipeline and the plugin workflow are implemented and tested:

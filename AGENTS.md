@@ -565,6 +565,21 @@ OCCT is unavailable. `step_budget.py` writes only `--json`; `step_audit.py` writ
 only `--json`; `plugin_permission_audit.py` writes only `--json`. All three are
 read-only against the repository.
 
+GitHub plugin release (verified 2026-10-31):
+
+```bash
+python3 helper_scripts/release_plugin.py --dry-run
+python3 helper_scripts/release_plugin.py
+```
+
+The release helper requires a clean working tree, matching versions in
+`pyproject.toml`, the plugin PEP 723 block, and `CHANGELOG.md`, and an
+authenticated `gh` CLI. It runs the full test suite with the optional extras,
+builds the wheel, creates or reuses the `v<version>` tag at the current commit,
+uploads the wheel, and uses the matching changelog section as the release notes.
+Use `--draft`, `--prerelease`, `--skip-tests`, `--notes-file`, `--tag`, or
+`--repo` when needed.
+
 Planned: Pages tab, G-code input fallback, fused STEP, multi-material and
 support data.
 
