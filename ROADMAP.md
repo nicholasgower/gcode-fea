@@ -233,26 +233,31 @@ The 2.5 build is the only plugin target (`src/slic3r/plugin` is absent at `v2.4.
 
 **Goal:** a usable OrcaSlicer experience.
 
+**Status (2026-10-31): complete for the Linux 2.5.0-beta build.** Wheel and single-file installs, capture + export capabilities, config, progress/cancel, cache staleness, permissions, and the user guide are implemented. A GUI smoke test on build `345efec6` loaded the wheel, captured 390 beads/100 layers, and exported the sidecar/report without a terminal. The Pages tab is not implemented. See `docs/plugin_user_guide.md`.
+
 **Deliverables**
 
-- Script capability: "Export FEA Geometry" with a dialog and progress.
-- Pages tab (optional): slice status, export history, report viewer.
-- Config: defaults, ROI, modes, output formats, solver.
-- Cache management and stale-slice detection.
-- Install/packaging: `.py` or `.whl`; dependencies; permissions.
-- Include `LICENSE` and `CREDITS.md`; document the MIT/AGPL boundary for the bundled plugin.
-- Docs: user guide, troubleshooting, examples.
+- Script capability: "Export FEA Geometry" with a dialog and progress. **Done**, with a progress dialog and cancel.
+- Pages tab (optional): slice status, export history, report viewer. **Not done**; plugin storage and the report JSON cover status.
+- Config: defaults, ROI, modes, output formats, solver. **Done**; solver choice is covered by the benchmark/cohesive CLIs, not the plugin.
+- Cache management and stale-slice detection. **Done** via `slice_hash` and `source_hash`.
+- Install/packaging: `.py` or `.whl`; dependencies; permissions. **Done**; the wheel bundles the core and NumPy is the only dependency.
+- Include `LICENSE` and `CREDITS.md`; document the MIT/AGPL boundary for the bundled plugin. **Done.**
+- Docs: user guide, troubleshooting, examples. **Done.**
 
 **Acceptance**
 
-- A user can slice, export, and open the result without a terminal.
-- The export does not block the UI or silently freeze slicing.
-- Errors are actionable and logged.
-- The plugin declares only the permissions it needs.
+- A user can slice, export, and open the result without a terminal. **Pass** on build `345efec6` (Plugins window / Speed Dial).
+- The export does not block the UI or silently freeze slicing. **Partial**: the script runs on the UI thread with progress checkpoints; large STEP exports still block. Capture is on the slicing thread.
+- Errors are actionable and logged. **Pass**; failures return `ExecutionResult.failure` and tracebacks go to `python_*.log`.
+- The plugin declares only the permissions it needs. **Pass**: no network/process/threads; reads declared at load; writes default to plugin storage and prompt once for external paths.
 
 **Risks**
 
 - Experimental API; UI thread rules; audit prompts; dependency size.
+- The wheel preset reference includes the wheel stem (and thus the version); document and re-point presets after version bumps.
+- `psGCodePostProcess` was not dispatched during G-code export on build `345efec6`; process data needs an explicit `gcode_path` or the CLI.
+- The first capture after a reinstall may require accepting `FsReadWrite:open` prompts once.
 
 ## Cross-cutting workstreams
 
@@ -294,6 +299,9 @@ The 2.5 build is the only plugin target (`src/slic3r/plugin` is absent at `v2.4.
 | D24 | Process data source | Resolved | G-code parsing; plugin graph lacks per-path process data |
 | D25 | Bond-quality model | Open | Lumped two-time cooling + Arrhenius healing; parameters uncalibrated |
 | D26 | Probe/G-code frame alignment | Resolved | Auto-estimate XY plate offset from bounding boxes |
+| D27 | Plugin packaging | Resolved | Self-contained wheel bundles the core; single-file `.py` for development |
+| D28 | Plugin cache flow | Resolved | Capture at `posSimplifyPath`; script export reads the cache |
+| D29 | Plugin progress model | Resolved | UI-thread script + progress checkpoints; no background thread in the adapter |
 
 ## Risk register
 
@@ -333,6 +341,9 @@ The 2.5 build is the only plugin target (`src/slic3r/plugin` is absent at `v2.4.
 | Uncalibrated adhesion model | non-predictive bond quality | flag `calibrated=false`; report uncertainty and domain |
 | G-code time underestimation | wrong thermal history | report lower-bound caveat; calibrate against measured layer times |
 | Interlayer quality saturation | weak sensitivity | revisit cooling parameters during calibration |
+| Wheel key includes version | preset references break on upgrade | document the reference; re-point presets after bumps |
+| UI-thread export | freeze on large STEP | ROI/layer range; document; move to a worker later |
+| `psGCodePostProcess` not dispatched | no automatic process data | explicit `gcode_path`; revisit on newer builds |
 | Audit prompts outside `~/.config/OrcaSlicer` | export friction | plugin storage; G-code folder; declare permissions |
 | Two-build divergence (2.5 plugin vs 2.4.2 MCP) | confusion | pin builds; document roles; no plugin dependency on MCP |
 
@@ -341,7 +352,7 @@ The 2.5 build is the only plugin target (`src/slic3r/plugin` is absent at `v2.4.
 - **v0.1 (geometry):** Phase 0 and Phase 1 core complete; plugin discovery/hook smoke test; real 20 mm cube fixture; ROI STEP + sidecar + report; volume/envelope/watertight gates pass; dedicated thin-wall/overhang/multi-material fixtures pending; docs and tests.
 - **v0.2 (benchmark + physical geometry):** Phase 2 tooling complete (solver run pending) and Phase 2b complete; paper comparison and Ender 3 V2 Neo coupon measurements documented.
 - **v0.3 (adhesion):** Phase 3 and Phase 4 tooling complete; cohesive workflow + Abaqus template + process-informed bond quality (solver run, calibration, and physical validation pending).
-- **v1.0 (plugin):** Phase 5 complete; end-to-end OrcaSlicer UX; docs; packaging.
+- **v1.0 (plugin):** Phase 5 complete; end-to-end OrcaSlicer UX verified on Linux 2.5.0-beta build `345efec6`; docs and wheel packaging; Pages tab and process-seam capture pending.
 
 ## References
 

@@ -15,7 +15,7 @@ The output is not the nominal CAD surface. It is the geometry the printer actual
 
 ## 2. Status
 
-Phase 0 integration spike, Phase 1 core geometry MVP, Phase 2 benchmark tooling, Phase 3 cohesive-interface tooling, and Phase 4 process-informed adhesion tooling are complete (2026-10-31). The core ingests probes or caches, solves cross-sections, builds bead meshes, detects contacts, filters ROI, and writes sidecar/report/STL/STEP. Phase 2 adds analytic paper coupons, a voxel hex8 mesh, Abaqus/CalculiX input writers, element deletion/localization, and the paper comparison harness. Phase 3 adds cohesive cards/laws, contact-area-corrected interface extraction, mesh splitting with zero-thickness COH3D8 elements, and an Abaqus cohesive deck. Phase 4 adds G-code process parsing, per-bead process records, a lumped Arrhenius bond-quality model, per-interface `bond_quality` in the sidecar, and an uncertainty envelope. The benchmark and cohesive solves need an external FE solver; calibration and physical validation are pending. See `docs/phase0_report.md`, `docs/phase1_report.md`, `docs/paper_benchmark.md`, `docs/cohesive_interfaces.md`, and `docs/process_adhesion.md`. This document records the modeling assumptions, integration facts, and engineering rules that the implementation must follow. The phased plan is in `ROADMAP.md`.
+Phase 0 integration spike, Phase 1 core geometry MVP, Phase 2 benchmark tooling, Phase 3 cohesive-interface tooling, Phase 4 process-informed adhesion tooling, and Phase 5 plugin UX/packaging are complete (2026-10-31). The core ingests probes or caches, solves cross-sections, builds bead meshes, detects contacts, filters ROI, and writes sidecar/report/STL/STEP. Phase 2 adds analytic paper coupons, a voxel hex8 mesh, Abaqus/CalculiX input writers, element deletion/localization, and the paper comparison harness. Phase 3 adds cohesive cards/laws, contact-area-corrected interface extraction, mesh splitting with zero-thickness COH3D8 elements, and an Abaqus cohesive deck. Phase 4 adds G-code process parsing, per-bead process records, a lumped Arrhenius bond-quality model, per-interface `bond_quality` in the sidecar, and an uncertainty envelope. Phase 5 adds a wheel/single-file plugin with a capture capability at `posSimplifyPath` and an "Export FEA Geometry" script, config, progress/cancel, cache staleness, permissions, and a user guide; the GUI flow was smoke-tested on build `345efec6`. The benchmark and cohesive solves need an external FE solver; calibration and physical validation are pending. See `docs/phase0_report.md`, `docs/phase1_report.md`, `docs/paper_benchmark.md`, `docs/cohesive_interfaces.md`, `docs/process_adhesion.md`, and `docs/plugin_user_guide.md`. This document records the modeling assumptions, integration facts, and engineering rules that the implementation must follow. The phased plan is in `ROADMAP.md`.
 
 Open decisions are tracked in `ROADMAP.md`; do not silently resolve them in code.
 
@@ -30,18 +30,23 @@ src/gcode_fea/               # core: model, cross-sections, cache, sweep, contac
 src/gcode_fea/solvers/       # element deletion, Abaqus/CalculiX writers, coupon/cohesive jobs
 src/gcode_fea/process.py     # G-code process parsing and per-bead records
 src/gcode_fea/adhesion.py    # bond-quality model and uncertainty
+src/gcode_fea/config.py      # plugin config schema and cache staleness
+src/gcode_fea/plugin_export.py  # headless plugin export worker
 plugins/phase0_probe/        # Phase 0/Phase 1 slicing-pipeline probe
-helper_scripts/              # env doctor, slice wrapper, plugin sync, Phase 0 bead builder
+plugins/gcode_fea/           # OrcaSlicer adapter: capture + export capabilities
+helper_scripts/              # env doctor, slice wrapper, plugin sync/wheel, Phase 0 bead builder
 tests/                       # helper and core tests
 tests/fixtures/phase0/       # one-layer probe + minimal bead STEP/report
 tests/fixtures/phase1/       # real 20 mm cube probe + report
 tests/fixtures/benchmark/    # analytic paper coupon metrics
 tests/fixtures/process/      # trimmed real G-code slice for process tests
+tests/fixtures/profiles/process_gcode_fea.json  # capture-enabled process preset
 docs/phase0_report.md        # Phase 0 results and findings
 docs/phase1_report.md        # Phase 1 core geometry results and limitations
 docs/paper_benchmark.md      # Phase 2 benchmark tooling and status
 docs/cohesive_interfaces.md  # Phase 3 interface tooling and status
 docs/process_adhesion.md     # Phase 4 process-informed adhesion
+docs/plugin_user_guide.md    # Phase 5 install, config, workflow, troubleshooting
 ```
 
 Planned:
@@ -308,6 +313,7 @@ Default to region of interest for bead-resolved exports. Full-part bead B-rep is
 - Phase 2 defaults: analytic paper coupons, `paper_octagon` cross-section, voxel hex8 mesh at `<= 0.05 mm` when volume or contact height matters, Rankine criterion, 0.01% deletion localization. Do not claim the benchmark passes until a solver run is in `docs/`.
 - Phase 3 defaults: contact-model interface areas (never raw voxel faces), intralayer area scaled by the flat-side fraction when available, zero-thickness COH3D8 with constitutive thickness 1.0, Abaqus as the only end-to-end cohesive target, and cohesive cards flagged `calibrated=false` until measured.
 - Phase 4 defaults: process data from G-code (the plugin graph has none), plate-offset auto-alignment, two-time lumped cooling plus Arrhenius healing, `bond_quality` scaling strength and toughness, and an uncertainty envelope. Never present bond quality or the adhesion model as calibrated.
+- Phase 5 defaults: wheel bundles the core; script export runs on the UI thread with progress checkpoints; cache capture at `posSimplifyPath`; stale detection from `source_hash`; writes default to plugin storage. The wheel's preset reference is `<wheel-stem>;;<capability>`, so it includes the version.
 - License: MIT for original project code (`LICENSE`); preserve `CREDITS.md`. The paper is CC BY 4.0; OrcaSlicer and the MaxEllis fork are AGPL-3.0. Do not copy AGPL code into the MIT core; review combined-work obligations before distributing a bundled plugin or modified OrcaSlicer. The Python project declares `license = { text = "MIT" }` in `pyproject.toml`.
 - Style: Python 3.12+, type hints, `ruff`/`black` (or the project's chosen formatter), `pytest`. Keep the core free of GUI and OrcaSlicer imports.
 
@@ -359,6 +365,7 @@ Don't:
 - Don't claim the Phase 2 benchmark passes without a solver run recorded in `docs/`.
 - Don't present `INITIAL_PLA_COHESIVE` as measured or calibrated, and don't use raw voxel face areas as cohesive areas.
 - Don't present the Phase 4 bond-quality model as predictive or calibrated, and don't hide its parameter uncertainty.
+- Don't run heavy export work without progress checkpoints, and don't claim a plugin flow works on a build until it has been exercised in that build.
 
 ## 15. Commands
 
@@ -491,7 +498,33 @@ Outputs: `beads.json` (sidecar with interfaces/process/adhesion),
 `report.json`, `process.json`, `adhesion.json`, and `uncertainty.json`.
 Coverage on the 20 mm cube is 100% (390/390 beads, plate offset -100, -100).
 
-Planned: G-code input fallback, fused STEP, multi-material and support data.
+Phase 5 plugin (verified 2026-10-31, 2.5.0-beta build `345efec6`):
+
+```bash
+python3 helper_scripts/build_plugin_wheel.py --out dist
+mkdir -p ~/.config/OrcaSlicer/orca_plugins/gcode_fea
+cp dist/gcode_fea_orca-0.1.0-py3-none-any.whl \
+  ~/.config/OrcaSlicer/orca_plugins/gcode_fea/
+python3 helper_scripts/orca_plugin_sync.py \
+  --src plugins/gcode_fea --name gcode_fea   # single-file alternative
+```
+
+Then enable both capabilities in the Plugins window, slice once with the
+capture-enabled process preset (`tests/fixtures/profiles/process_gcode_fea.json`),
+and run **Export FEA Geometry** from Plugins or the Speed Dial. Outputs land in
+`plugin_data/gcode_fea_orca-0.1.0-py3-none-any/exports/`.
+
+Observed on this build: the wheel is discovered and loaded, capture writes
+`cache/slice.json`, and the script exports the sidecar/report. The wheel preset
+reference must be the wheel stem (`gcode_fea_orca-0.1.0-py3-none-any;;Capture Slice Cache`).
+The `psGCodePostProcess` seam was not dispatched during G-code export, so set
+`gcode_path` explicitly for process-informed interfaces.
+
+`tests/fixtures/profiles/process_gcode_fea.json` is the capture-enabled process
+preset.
+
+Planned: Pages tab, G-code input fallback, fused STEP, multi-material and
+support data.
 
 ## 16. References
 
@@ -501,6 +534,7 @@ Planned: G-code input fallback, fused STEP, multi-material and support data.
 - Phase 2 benchmark report: `docs/paper_benchmark.md` (coupon/BC/deletion tooling, paper comparison, pending solver run).
 - Phase 3 cohesive report: `docs/cohesive_interfaces.md` (cards, interface extraction, COH3D8 deck, calibration plan).
 - Phase 4 adhesion report: `docs/process_adhesion.md` (G-code process data, bond-quality model, uncertainty, pending calibration).
+- Phase 5 plugin guide: `docs/plugin_user_guide.md` (install, config, workflow, permissions, troubleshooting).
 - OrcaSlicer plugin system: https://www.orcaslicer.com/wiki/developer_reference/plugin_development/plugin_system.html
 - OrcaSlicer plugin development: https://www.orcaslicer.com/wiki/developer_reference/plugin_development/plugin_development.html
 - OrcaSlicer slicing API: https://www.orcaslicer.com/wiki/developer_reference/plugin_development/api_reference/slicing.html
