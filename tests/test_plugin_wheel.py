@@ -34,6 +34,7 @@ class PluginWheelTests(unittest.TestCase):
         self.assertIn("gcode_fea/config.py", names)
         self.assertIn("gcode_fea/plugin_export.py", names)
         self.assertIn("gcode_fea/step_planar.py", names)
+        self.assertIn("gcode_fea/save_dialog.py", names)
         info = [name for name in names if name.endswith(".dist-info/METADATA")]
         self.assertEqual(len(info), 1)
         for required in ("METADATA", "WHEEL", "RECORD"):

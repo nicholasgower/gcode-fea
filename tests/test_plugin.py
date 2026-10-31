@@ -7,6 +7,7 @@ import sys
 import tempfile
 import types
 import unittest
+from unittest import mock
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -281,6 +282,7 @@ class PluginTests(unittest.TestCase):
                 "core_path": str(REPO_ROOT / "src"),
                 "resolution": 0.2,
                 "layer_range": [0, 0],
+                "ask_output_dir": False,
             }
         )
         result = capability.execute()
@@ -302,6 +304,7 @@ class PluginTests(unittest.TestCase):
                 "core_path": str(REPO_ROOT / "src"),
                 "step_engine": "planar",
                 "step_stride": 2,
+                "ask_save_path": False,
             }
         )
         result = capability.execute()
@@ -322,6 +325,7 @@ class PluginTests(unittest.TestCase):
             {
                 "core_path": str(REPO_ROOT / "src"),
                 "max_step_faces": 5,
+                "ask_save_path": False,
             }
         )
         result = capability.execute()
@@ -337,7 +341,11 @@ class PluginTests(unittest.TestCase):
         kept.write_text(gcode.read_text())
         capability = self.plugin.ExportFEAGeometry()
         capability.config_json = json.dumps(
-            {"core_path": str(REPO_ROOT / "src"), "resolution": 0.2}
+            {
+                "core_path": str(REPO_ROOT / "src"),
+                "resolution": 0.2,
+                "ask_output_dir": False,
+            }
         )
         result = capability.execute()
         self.assertEqual(result.status, "success", result.message)
@@ -356,7 +364,11 @@ class PluginTests(unittest.TestCase):
         probe.write_text(probe.read_text() + "\n")
         capability = self.plugin.ExportFEAGeometry()
         capability.config_json = json.dumps(
-            {"core_path": str(REPO_ROOT / "src"), "resolution": 0.2}
+            {
+                "core_path": str(REPO_ROOT / "src"),
+                "resolution": 0.2,
+                "ask_output_dir": False,
+            }
         )
         result = capability.execute()
         self.assertEqual(result.status, "success", result.message)
@@ -376,6 +388,69 @@ class PluginTests(unittest.TestCase):
         self.assertTrue(kept.exists())
         self.assertEqual(kept.read_text(), gcode.read_text())
 
+    @mock.patch("gcode_fea.save_dialog.choose_save_file")
+    def test_step_save_dialog_uses_chosen_path(self, choose) -> None:
+        from gcode_fea.save_dialog import DialogResult
+
+        self.make_capture().execute(
+            FakeContext(FakeObject([FakeLayer(0, 0.2)]))
+        )
+        chosen = Path(self.tmp.name) / "picked.step"
+        choose.return_value = DialogResult(chosen, False, "zenity")
+        capability = self.plugin.ExportSTEPViewable()
+        capability.config_json = json.dumps(
+            {
+                "core_path": str(REPO_ROOT / "src"),
+                "step_engine": "planar",
+                "ask_save_path": True,
+            }
+        )
+        result = capability.execute()
+        self.assertEqual(result.status, "success", result.message)
+        self.assertTrue(chosen.exists())
+        self.assertIn(str(chosen), result.message)
+
+    @mock.patch("gcode_fea.save_dialog.choose_save_file")
+    def test_step_save_dialog_cancel(self, choose) -> None:
+        from gcode_fea.save_dialog import DialogResult
+
+        self.make_capture().execute(
+            FakeContext(FakeObject([FakeLayer(0, 0.2)]))
+        )
+        choose.return_value = DialogResult(None, True, "zenity")
+        capability = self.plugin.ExportSTEPViewable()
+        capability.config_json = json.dumps(
+            {
+                "core_path": str(REPO_ROOT / "src"),
+                "ask_save_path": True,
+            }
+        )
+        result = capability.execute()
+        self.assertEqual(result.status, "skipped")
+        self.assertIn("cancel", result.message.lower())
+
+    @mock.patch("gcode_fea.save_dialog.choose_directory")
+    def test_export_uses_chosen_directory(self, choose) -> None:
+        from gcode_fea.save_dialog import DialogResult
+
+        self.make_capture().execute(
+            FakeContext(FakeObject([FakeLayer(0, 0.2)]))
+        )
+        chosen = Path(self.tmp.name) / "chosen-exports"
+        choose.return_value = DialogResult(chosen, False, "zenity")
+        capability = self.plugin.ExportFEAGeometry()
+        capability.config_json = json.dumps(
+            {
+                "core_path": str(REPO_ROOT / "src"),
+                "resolution": 0.2,
+                "ask_output_dir": True,
+            }
+        )
+        result = capability.execute()
+        self.assertEqual(result.status, "success", result.message)
+        self.assertTrue((chosen / "beads.json").exists())
+        self.assertTrue((chosen / "report.json").exists())
+
     def test_export_without_cache_fails(self) -> None:
         capability = self.plugin.ExportFEAGeometry()
         capability.config_json = json.dumps({"core_path": str(REPO_ROOT / "src")})
@@ -390,7 +465,11 @@ class PluginTests(unittest.TestCase):
         self.orca.host.ui.next_handle = FakeProgress(can_continue=False)
         capability = self.plugin.ExportFEAGeometry()
         capability.config_json = json.dumps(
-            {"core_path": str(REPO_ROOT / "src"), "resolution": 0.2}
+            {
+                "core_path": str(REPO_ROOT / "src"),
+                "resolution": 0.2,
+                "ask_output_dir": False,
+            }
         )
         result = capability.execute()
         # Cancellation is only observed if a progress checkpoint returns False.
