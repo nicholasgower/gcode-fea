@@ -172,6 +172,7 @@ class ExportFEAGeometry(orca.script.ScriptPluginCapabilityBase):
             "cache_path": "",
             "output_dir": "",
             "gcode_path": "",
+            "ask_output_dir": True,
         }
 
     def execute(self) -> orca.ExecutionResult:
@@ -181,12 +182,24 @@ class ExportFEAGeometry(orca.script.ScriptPluginCapabilityBase):
             plugin_config = core["parse_config"](config)
         except Exception as exc:
             return _failure("configuration error", exc)
-        except OSError as exc:
-            return _failure("configuration error", exc)
 
         storage = _storage()
         cache_path = plugin_config.resolve_cache_path(storage)
         output_dir = plugin_config.resolve_output_dir(storage)
+        dialog_note = ""
+        if plugin_config.ask_output_dir:
+            choice = core["choose_directory"](
+                output_dir, title="Choose the FEA export folder"
+            )
+            if choice.cancelled:
+                return orca.ExecutionResult.skipped("Export cancelled by user")
+            if choice.path is not None:
+                output_dir = choice.path
+            elif not choice.available:
+                dialog_note = (
+                    "\n(no native folder dialog available; used the "
+                    "configured output folder)"
+                )
 
         if not cache_path.exists():
             probe_path = plugin_config.resolve_probe_path(storage)
@@ -260,6 +273,7 @@ class ExportFEAGeometry(orca.script.ScriptPluginCapabilityBase):
             message += "\n" + "\n".join(str(path) for path in files.values())
         if status.get("stale"):
             message += "\nwarning: the cache is stale; slice again before trusting the result"
+        message += dialog_note
         return orca.ExecutionResult.success(
             message, data=json.dumps(summary, sort_keys=True)
         )
@@ -282,6 +296,8 @@ class ExportSTEPViewable(orca.script.ScriptPluginCapabilityBase):
             "core_path": "",
             "cache_path": "",
             "output_dir": "",
+            "save_path": "",
+            "ask_save_path": True,
         }
 
     def execute(self) -> orca.ExecutionResult:
@@ -301,8 +317,26 @@ class ExportSTEPViewable(orca.script.ScriptPluginCapabilityBase):
                 "'Capture Slice Cache' enabled, then run Export STEP again.",
             )
         output_dir = plugin_config.resolve_output_dir(storage)
+        target = plugin_config.resolve_save_path(storage)
+        dialog_note = ""
+        if plugin_config.ask_save_path:
+            choice = core["choose_save_file"](
+                target,
+                title="Save STEP file",
+                filter_name="STEP files",
+                patterns=("*.step", "*.stp"),
+            )
+            if choice.cancelled:
+                return orca.ExecutionResult.skipped("STEP export cancelled by user")
+            if choice.path is not None:
+                target = choice.path
+            elif not choice.available:
+                dialog_note = (
+                    "\n(no native save dialog available; used the configured "
+                    "save path)"
+                )
+        output_dir = target.parent
         output_dir.mkdir(parents=True, exist_ok=True)
-        target = output_dir / "beads.step"
 
         cancelled = {"value": False}
 
@@ -339,6 +373,7 @@ class ExportSTEPViewable(orca.script.ScriptPluginCapabilityBase):
         )
         if summary.get("volume_relative_error") is not None:
             message += f", volume error {summary['volume_relative_error']:.2e}"
+        message += dialog_note
         return orca.ExecutionResult.success(
             message, data=json.dumps(summary, sort_keys=True)
         )
@@ -460,6 +495,12 @@ def _core(config: dict) -> dict:
         "export_step_from_cache": importlib.import_module(
             "gcode_fea.plugin_export"
         ).export_step_from_cache,
+        "choose_save_file": importlib.import_module(
+            "gcode_fea.save_dialog"
+        ).choose_save_file,
+        "choose_directory": importlib.import_module(
+            "gcode_fea.save_dialog"
+        ).choose_directory,
         "cache_status": importlib.import_module("gcode_fea.config").cache_status,
     }
 
