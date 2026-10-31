@@ -207,23 +207,27 @@ The 2.5 build is the only plugin target (`src/slic3r/plugin` is absent at `v2.4.
 
 **Goal:** make interface properties spatially varying and predictive.
 
+**Status (2026-10-31): tooling complete; calibration and physical validation pending.** G-code process parsing, per-bead process records, the thermal/healing bond-quality model, sidecar integration, and the uncertainty envelope are implemented and tested. No coupons were printed and no model parameter is calibrated. See `docs/process_adhesion.md`.
+
 **Deliverables**
 
-- Per-path process data: speed, temperature, fan, layer time (G-code parsing or new binding).
-- Thermal/healing model: interface temperature history → bond degree → `σ`/`G`.
-- Per-interface bond-quality field in the sidecar.
-- Experimental validation at different layer times/temperatures/fan settings.
-- Uncertainty report.
+- Per-path process data: speed, temperature, fan, layer time (G-code parsing or new binding). **Done** via G-code; 100% bead coverage on the 20 mm cube.
+- Thermal/healing model: interface temperature history → bond degree → `σ`/`G`. **Done** as a lumped Arrhenius model, flagged uncalibrated.
+- Per-interface bond-quality field in the sidecar. **Done**, with process and adhesion sections.
+- Experimental validation at different layer times/temperatures/fan settings. **Pending** (physical tests not run).
+- Uncertainty report. **Done** as a Monte Carlo sensitivity envelope.
 
 **Acceptance**
 
-- Predicted strength trend matches experiments better than a global `c_v`.
-- The model reports uncertainty and its calibration domain.
-- The workflow is documented and reproducible.
+- Predicted strength trend matches experiments better than a global `c_v`. **Pending physical validation.**
+- The model reports uncertainty and its calibration domain. **Pass** (`uncertainty.json`).
+- The workflow is documented and reproducible. **Pass** for generation; calibration pending.
 
 **Risks**
 
 - Thermal model complexity; missing sensors/calibration; material variability; runtime.
+- Lumped cooling saturates under default parameters, narrowing the interlayer quality range.
+- G-code timing ignores acceleration and firmware limits.
 
 ## Phase 5 — Plugin UX and packaging
 
@@ -287,6 +291,9 @@ The 2.5 build is the only plugin target (`src/slic3r/plugin` is absent at `v2.4.
 | D21 | Cohesive area source | Resolved | Contact model area; voxel faces scaled by A_contact/A_face |
 | D22 | Cohesive solver target | Resolved | Abaqus COH3D8 end-to-end; CalculiX pending |
 | D23 | Cohesive card values | Open | Initial estimate only; calibrate with peel/shear/DCB |
+| D24 | Process data source | Resolved | G-code parsing; plugin graph lacks per-path process data |
+| D25 | Bond-quality model | Open | Lumped two-time cooling + Arrhenius healing; parameters uncalibrated |
+| D26 | Probe/G-code frame alignment | Resolved | Auto-estimate XY plate offset from bounding boxes |
 
 ## Risk register
 
@@ -323,6 +330,9 @@ The 2.5 build is the only plugin target (`src/slic3r/plugin` is absent at `v2.4.
 | Uncalibrated cohesive card | non-predictive interface strength | flag `calibrated=false`; run calibration plan |
 | Cohesive junction elements | distorted elements at multi-bead nodes | inspect mesh; refine or tie junction nodes |
 | CalculiX cohesive gap | workaround scripts | Abaqus is the claimed target; add CalculiX later |
+| Uncalibrated adhesion model | non-predictive bond quality | flag `calibrated=false`; report uncertainty and domain |
+| G-code time underestimation | wrong thermal history | report lower-bound caveat; calibrate against measured layer times |
+| Interlayer quality saturation | weak sensitivity | revisit cooling parameters during calibration |
 | Audit prompts outside `~/.config/OrcaSlicer` | export friction | plugin storage; G-code folder; declare permissions |
 | Two-build divergence (2.5 plugin vs 2.4.2 MCP) | confusion | pin builds; document roles; no plugin dependency on MCP |
 
@@ -330,7 +340,7 @@ The 2.5 build is the only plugin target (`src/slic3r/plugin` is absent at `v2.4.
 
 - **v0.1 (geometry):** Phase 0 and Phase 1 core complete; plugin discovery/hook smoke test; real 20 mm cube fixture; ROI STEP + sidecar + report; volume/envelope/watertight gates pass; dedicated thin-wall/overhang/multi-material fixtures pending; docs and tests.
 - **v0.2 (benchmark + physical geometry):** Phase 2 tooling complete (solver run pending) and Phase 2b complete; paper comparison and Ender 3 V2 Neo coupon measurements documented.
-- **v0.3 (adhesion):** Phase 3 tooling complete; cohesive workflow + Abaqus template (solver run and calibration pending).
+- **v0.3 (adhesion):** Phase 3 and Phase 4 tooling complete; cohesive workflow + Abaqus template + process-informed bond quality (solver run, calibration, and physical validation pending).
 - **v1.0 (plugin):** Phase 5 complete; end-to-end OrcaSlicer UX; docs; packaging.
 
 ## References
