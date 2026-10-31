@@ -61,6 +61,7 @@ class PluginWheelTests(unittest.TestCase):
         self.assertIn("Name: gcode_fea_orca", metadata)
         self.assertIn("Requires-Dist: numpy", metadata)
         self.assertIn("Requires-Dist: shapely", metadata)
+        self.assertIn("Requires-Dist: manifold3d", metadata)
         self.assertIn("Import-Name: gcode_fea_plugin", metadata)
 
     def test_record_hashes(self) -> None:

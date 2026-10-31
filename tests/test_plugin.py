@@ -327,6 +327,7 @@ class PluginTests(unittest.TestCase):
         capability.config_json = json.dumps(
             {
                 "core_path": str(REPO_ROOT / "src"),
+                "step_engine": "planar",
                 "max_step_faces": 5,
                 "ask_save_path": False,
             }

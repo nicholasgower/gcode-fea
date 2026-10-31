@@ -55,6 +55,7 @@ class ConfigTests(unittest.TestCase):
             {"formats": ["sidecar", "pdf"]},
             {"step_stride": 0},
             {"step_tolerance": -0.1},
+            {"max_step_triangles": 0},
             {"max_layers": 0},
         ]
         for payload in cases:
