@@ -18,6 +18,10 @@ def build_sidecar(
     model: SliceModel,
     contacts: list[Contact],
     mesh_summary: dict | None = None,
+    interfaces: list | None = None,
+    bead_process: dict | None = None,
+    process_summary: dict | None = None,
+    adhesion: dict | None = None,
 ) -> dict:
     beads = []
     for bead in model.sorted_beads():
@@ -66,13 +70,31 @@ def build_sidecar(
         }
         for contact in contacts
     ]
-    return {
+    payload = {
         "schema": SIDECAR_SCHEMA,
         "meta": dict(model.meta),
         "beads": beads,
         "contacts": contacts_payload,
         "mesh_summary": mesh_summary or {},
     }
+    if interfaces is not None:
+        payload["interfaces"] = [
+            {
+                **item.to_dict(),
+                "bond_quality": item.bond_quality,
+            }
+            for item in interfaces
+        ]
+    if bead_process is not None:
+        payload["process"] = {
+            "beads": [
+                record.as_dict() for record in bead_process.values()
+            ],
+            "summary": process_summary or {},
+        }
+    if adhesion is not None:
+        payload["adhesion"] = adhesion
+    return payload
 
 
 def build_report(
@@ -82,6 +104,8 @@ def build_report(
     mesh_summary: dict | None = None,
     roi: tuple[float, float, float, float, float, float] | None = None,
     warnings: list[str] | None = None,
+    interfaces: list | None = None,
+    adhesion: dict | None = None,
 ) -> dict:
     min_width = min(bead.cross_section.width_total for bead in model.beads) if model.beads else None
     stats = contact_stats(contacts, resolution, min_width)
@@ -96,6 +120,8 @@ def build_report(
         volume_error = abs(mesh_volume - analytic_volume) / analytic_volume
     all_warnings = list(warnings or [])
     all_warnings.extend(stats.get("warnings", []))
+    if adhesion is not None:
+        all_warnings.extend(adhesion.get("warnings", []))
     for bead in model.beads:
         all_warnings.extend(f"{bead.bead_id}: {warning}" for warning in bead.cross_section.warnings)
     payload = {
@@ -126,9 +152,26 @@ def build_report(
             "intralayer_area": stats["intralayer_area"],
             "interlayer_area": stats["interlayer_area"],
             "contact_resolution": resolution,
+            "interface_count": len(interfaces) if interfaces is not None else None,
+            "mean_bond_quality": (
+                sum(item.bond_quality for item in interfaces) / len(interfaces)
+                if interfaces
+                else None
+            ),
+            "min_bond_quality": (
+                min(item.bond_quality for item in interfaces)
+                if interfaces
+                else None
+            ),
         },
         "warnings": sorted(set(all_warnings)),
     }
+    if adhesion is not None:
+        payload["adhesion"] = {
+            key: value
+            for key, value in adhesion.items()
+            if key != "details"
+        }
     payload["content_hash"] = content_hash(payload)
     return payload
 
@@ -143,10 +186,29 @@ def write_sidecar(
     contacts: list[Contact],
     path: str | Path,
     mesh_summary: dict | None = None,
+    interfaces: list | None = None,
+    bead_process: dict | None = None,
+    process_summary: dict | None = None,
+    adhesion: dict | None = None,
 ) -> Path:
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(json.dumps(build_sidecar(model, contacts, mesh_summary), indent=2, sort_keys=True) + "\n")
+    target.write_text(
+        json.dumps(
+            build_sidecar(
+                model,
+                contacts,
+                mesh_summary,
+                interfaces,
+                bead_process,
+                process_summary,
+                adhesion,
+            ),
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n"
+    )
     return target
 
 
@@ -158,12 +220,23 @@ def write_report(
     mesh_summary: dict | None = None,
     roi: tuple[float, float, float, float, float, float] | None = None,
     warnings: list[str] | None = None,
+    interfaces: list | None = None,
+    adhesion: dict | None = None,
 ) -> Path:
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(
         json.dumps(
-            build_report(model, contacts, resolution, mesh_summary, roi, warnings),
+            build_report(
+                model,
+                contacts,
+                resolution,
+                mesh_summary,
+                roi,
+                warnings,
+                interfaces,
+                adhesion,
+            ),
             indent=2,
             sort_keys=True,
         )
