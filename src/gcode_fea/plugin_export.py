@@ -115,12 +115,22 @@ def export_from_cache(
         files["stl"] = str(write_stl_model(model, out / "beads.stl"))
 
     if config.write_step:
+        from .step_planar import estimate_faces
+
+        estimated = estimate_faces(model, config.step_stride)
+        if estimated > config.max_step_faces:
+            raise ValueError(
+                f"STEP preflight: about {estimated:,} planar faces exceeds the "
+                f"limit of {config.max_step_faces:,}. Use an ROI, a layer range, "
+                "a larger step_stride, or raise max_step_faces."
+            )
         _report(progress, 0.8, "Writing STEP (this can take a while)")
         step = export_step(
             model,
             out / "beads.step",
             verify=True,
             profile_stride=config.step_stride,
+            step_engine=config.step_engine,
         )
         files["step"] = step["path"]
 
@@ -147,6 +157,64 @@ def export_from_cache(
         ),
     }
     return summary
+
+
+def export_step_from_cache(
+    cache_path: str | Path,
+    step_path: str | Path,
+    config: PluginConfig | None = None,
+    progress: Progress | None = None,
+) -> dict:
+    """Export only a viewable STEP file from a slice cache.
+
+    This is the fast path used by the plugin's "Export STEP (viewable)"
+    capability: no contact detection, no mesh statistics, and no sidecar.
+    """
+
+    config = config or PluginConfig()
+    cache = Path(cache_path)
+    target = Path(step_path)
+    if not cache.exists():
+        raise ValueError(
+            "no slice cache found; run a slice with the capture capability first"
+        )
+    _report(progress, 0.05, "Loading slice cache")
+    model = load_cache(cache)
+    model = model.filter_roi(config.roi, config.layer_range)
+    if not model.beads:
+        raise ValueError("the region of interest contains no beads")
+
+    from .step_planar import estimate_faces
+
+    estimated = estimate_faces(model, config.step_stride)
+    if estimated > config.max_step_faces:
+        raise ValueError(
+            f"STEP preflight: about {estimated:,} planar faces exceeds the "
+            f"limit of {config.max_step_faces:,}. Use an ROI, a layer range, "
+            "a larger step_stride, or raise max_step_faces."
+        )
+    _report(progress, 0.3, f"Writing {estimated:,} planar faces")
+    result = export_step(
+        model,
+        target,
+        verify=True,
+        profile_stride=config.step_stride,
+        step_engine=config.step_engine,
+    )
+    _report(progress, 1.0, "Done")
+    return {
+        "schema": "gcode_fea.plugin_step.v1",
+        "cache": str(cache),
+        "bead_count": len(model.beads),
+        "layer_count": len(model.layers()),
+        "engine": result.get("engine"),
+        "solids": result.get("solids", result.get("segment_prisms")),
+        "faces": estimate_faces(model, config.step_stride),
+        "bytes": target.stat().st_size,
+        "volume": result.get("volume"),
+        "volume_relative_error": result.get("volume_relative_error"),
+        "file": str(target),
+    }
 
 
 def export_from_probe(

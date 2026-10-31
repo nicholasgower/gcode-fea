@@ -62,6 +62,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=1,
         help="use every Nth cross-section point in STEP (default 1)",
     )
+    parser.add_argument(
+        "--step-engine",
+        choices=("auto", "gmsh", "planar"),
+        default="auto",
+        help="STEP writer: gmsh, pure-Python planar, or auto (default auto)",
+    )
     parser.add_argument("--sidecar", type=Path, help="sidecar path (default: <out>/beads.json)")
     parser.add_argument("--report", type=Path, help="report path (default: <out>/report.json)")
     return parser
@@ -131,7 +137,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.step is not None:
         try:
             step_result = export_step(
-                model, args.step, verify=True, profile_stride=args.step_stride
+                model,
+                args.step,
+                verify=True,
+                profile_stride=args.step_stride,
+                step_engine=args.step_engine,
             )
         except (RuntimeError, OSError, ValueError) as exc:
             print(f"error: STEP export failed: {exc}", file=sys.stderr)
@@ -157,9 +167,10 @@ def main(argv: list[str] | None = None) -> int:
     if stl_path:
         print(f"stl: {stl_path}")
     if step_result:
+        solid_count = step_result.get("solids", step_result.get("solid_count"))
         print(
             f"step: {step_result['path']} "
-            f"({step_result.get('solid_count')} solids, "
+            f"({solid_count} solids via {step_result.get('engine', 'gmsh')}, "
             f"volume error {step_result.get('volume_relative_error')})"
         )
     return 0

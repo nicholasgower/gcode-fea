@@ -159,6 +159,8 @@ class ExportFEAGeometry(orca.script.ScriptPluginCapabilityBase):
             "c_v": 0.225,
             "resolution": 0.1,
             "step_stride": 1,
+            "step_engine": "auto",
+            "max_step_faces": 150000,
             "roi": None,
             "layer_range": None,
             "formats": ["sidecar", "report"],
@@ -262,6 +264,84 @@ class ExportFEAGeometry(orca.script.ScriptPluginCapabilityBase):
         )
 
 
+class ExportSTEPViewable(orca.script.ScriptPluginCapabilityBase):
+    """Export only a viewable STEP file from the captured slice cache."""
+
+    def get_name(self) -> str:
+        return "Export STEP (viewable)"
+
+    def get_default_config(self) -> dict:
+        return {
+            "step_stride": 2,
+            "step_engine": "planar",
+            "max_step_faces": 150000,
+            "roi": None,
+            "layer_range": None,
+            "core_path": "",
+            "cache_path": "",
+            "output_dir": "",
+        }
+
+    def execute(self) -> orca.ExecutionResult:
+        try:
+            config = _merged_config(self)
+            core = _core(config)
+            plugin_config = core["parse_config"](config)
+        except Exception as exc:
+            return _failure("configuration error", exc)
+
+        storage = _storage()
+        cache_path = plugin_config.resolve_cache_path(storage)
+        if not cache_path.exists():
+            return orca.ExecutionResult.failure(
+                orca.PluginResult.RecoverableError,
+                "No slice cache yet. Slice the plate once with "
+                "'Capture Slice Cache' enabled, then run Export STEP again.",
+            )
+        output_dir = plugin_config.resolve_output_dir(storage)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        target = output_dir / "beads.step"
+
+        cancelled = {"value": False}
+
+        def progress(fraction: float, message: str) -> None:
+            if handle is not None and not handle.update(
+                max(0, min(100, int(fraction * 100))), message
+            ):
+                cancelled["value"] = True
+
+        handle = None
+        try:
+            handle = _progress_dialog("Export STEP (viewable)")
+        except Exception:
+            handle = None
+        try:
+            summary = core["export_step_from_cache"](
+                cache_path, target, plugin_config, progress=progress
+            )
+        except Exception as exc:
+            return _failure("STEP export failed", exc)
+        finally:
+            if handle is not None:
+                try:
+                    handle.close()
+                except Exception:
+                    pass
+
+        if cancelled["value"]:
+            return orca.ExecutionResult.skipped("STEP export cancelled by user")
+        message = (
+            f"STEP exported to {summary['file']}\n"
+            f"{summary['solids']} solids, {summary['faces']:,} faces, "
+            f"{summary['bytes'] / 1e6:.1f} MB, engine {summary['engine']}"
+        )
+        if summary.get("volume_relative_error") is not None:
+            message += f", volume error {summary['volume_relative_error']:.2e}"
+        return orca.ExecutionResult.success(
+            message, data=json.dumps(summary, sort_keys=True)
+        )
+
+
 @orca.plugin
 class GCodeFEAPlugin(orca.base):
     def register_capabilities(self) -> None:
@@ -271,6 +351,7 @@ class GCodeFEAPlugin(orca.base):
         orca.request_permissions(fs_read=_read_roots())
         orca.register_capability(CaptureSliceCache)
         orca.register_capability(ExportFEAGeometry)
+        orca.register_capability(ExportSTEPViewable)
 
 
 def _read_roots() -> list[str]:
@@ -374,6 +455,9 @@ def _core(config: dict) -> dict:
         "export_from_cache": importlib.import_module(
             "gcode_fea.plugin_export"
         ).export_from_cache,
+        "export_step_from_cache": importlib.import_module(
+            "gcode_fea.plugin_export"
+        ).export_step_from_cache,
         "cache_status": importlib.import_module("gcode_fea.config").cache_status,
     }
 

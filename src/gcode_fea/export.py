@@ -45,24 +45,35 @@ def export_step(
     path: str | Path,
     verify: bool = True,
     profile_stride: int = 1,
+    step_engine: str = "auto",
 ) -> dict:
     """Export each bead as a compound of straight-segment prisms.
 
-    The profile is a polygon sampled from the rounded cross-section. This is an
-    analytic B-rep (polygonal profile); smooth arc surfaces are a later
-    refinement. Segment prisms overlap at corners and are kept as a compound so
-    the volume sum remains explicit.
+    Engines:
+
+    - ``gmsh``: OCCT B-rep behind gmsh (optional GPL dependency),
+    - ``planar``: pure-Python AP214 solids with planar faces (no extra deps),
+    - ``auto``: gmsh when importable, otherwise planar.
+
+    Both engines keep the compound as one solid per segment prism so the volume
+    sum remains explicit.
     """
 
+    if step_engine not in ("auto", "gmsh", "planar"):
+        raise ValueError("step_engine must be 'auto', 'gmsh', or 'planar'")
+    target = Path(path)
+    if step_engine == "planar":
+        return _export_step_planar(model, target, profile_stride)
     try:
         import gmsh
-    except ImportError as exc:  # pragma: no cover - depends on optional install
-        raise RuntimeError(
-            "gmsh is required for STEP export; run with "
-            "`uv run --with gmsh python -m gcode_fea.cli ...`"
-        ) from exc
+    except ImportError:
+        if step_engine == "gmsh":
+            raise RuntimeError(
+                "gmsh is required for the gmsh STEP engine; use "
+                "`--step-engine planar` or `uv run --with gmsh ...`"
+            )
+        return _export_step_planar(model, target, profile_stride)
 
-    target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
     if not model.beads:
         raise ValueError("cannot export an empty model")
@@ -107,11 +118,29 @@ def export_step(
 
     result = {
         "path": str(target),
+        "engine": "gmsh",
         "segment_prisms": segment_count,
         "volumes": len(volumes),
     }
     if verify:
         result.update(_verify_step(target, model.volume))
+    return result
+
+
+def _export_step_planar(
+    model: SliceModel,
+    target: Path,
+    profile_stride: int,
+) -> dict:
+    from .step_planar import write_step_planar
+
+    result = write_step_planar(
+        model,
+        target,
+        profile_stride=profile_stride,
+    )
+    result["segment_prisms"] = result["solids"]
+    result["bbox"] = list(model.bbox())
     return result
 
 
