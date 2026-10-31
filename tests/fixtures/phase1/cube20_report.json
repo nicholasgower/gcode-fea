@@ -1,0 +1,51 @@
+{
+  "content_hash": "826064ed10963f814b058fd8ad6ef71a211690516c899fe7fd247da20e266f1c",
+  "meta": {
+    "c_h": 0.7,
+    "c_v": 0.225,
+    "frame": "printer",
+    "mode": "volume_conserving",
+    "orcaslicer_version": "2.5.0-beta",
+    "roi": null,
+    "units": "mm"
+  },
+  "schema": "gcode_fea.report.v1",
+  "source": "phase1_probe_obj102.json",
+  "summary": {
+    "analytic_volume": 3171.123596901917,
+    "bbox": [
+      -9.99657260648508,
+      -9.99657260648508,
+      -2.980232227667301e-09,
+      9.99657260648508,
+      9.99657260648508,
+      19.99999999999996
+    ],
+    "bead_count": 390,
+    "contact_count": 789,
+    "contact_resolution": 0.2,
+    "interlayer_area": 10459.389410596696,
+    "interlayer_count": 403,
+    "intralayer_area": 2658.9000396206975,
+    "intralayer_count": 386,
+    "layer_count": 100,
+    "material_counts": {
+      "default": 390
+    },
+    "mesh_volume": 3169.54093583391,
+    "role_counts": {
+      "Bottom surface": 1,
+      "Inner wall": 100,
+      "Internal Bridge": 1,
+      "Internal solid infill": 24,
+      "Outer wall": 100,
+      "Sparse infill": 93,
+      "Top surface": 71
+    },
+    "volume_relative_error": 0.0004990852673018282,
+    "watertight_fraction": 1.0
+  },
+  "warnings": [
+    "resolution is coarser than one quarter of the narrowest bead"
+  ]
+}
