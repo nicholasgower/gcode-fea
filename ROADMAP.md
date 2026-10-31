@@ -259,6 +259,41 @@ The 2.5 build is the only plugin target (`src/slic3r/plugin` is absent at `v2.4.
 - `psGCodePostProcess` was not dispatched during G-code export on build `345efec6`; process data needs an explicit `gcode_path` or the CLI.
 - The first capture after a reinstall may require accepting `FsReadWrite:open` prompts once.
 
+## Phase 6 — STEP/export hardening and cleanup
+
+**Goal:** close the small correctness and UX gaps left after Phase 5 without changing the core contracts or the benchmark schedule.
+
+**Status (2026-10-31): planned.** The merged STEP engine is validated on a 5-layer cube, but several minor issues remain in the planar fallback, full-part sizing, dependency handling, and test coverage.
+
+**Deliverables**
+
+- **Planar STEP correctness.** The planar writer still unions stitched/mitred bead solids. Sharp closed-loop corners can self-intersect, which produced an open shell and thin fragments in SolidCraft with the earlier merged engine. Either switch the planar writer to per-segment prisms or validate each shell and fall back to segment prisms. Report `closed`/`open_edges` for every planar export.
+- **Merged STEP quality.** Replace the zero-area-triangle nudge with proper degenerate/sliver cleanup, and reduce the triangle B-rep size by merging coplanar triangles or decimating without opening the shell. Report triangle, face, and byte counts; keep the SolidCraft interference check at zero.
+- **Tiny-face cleanup.** Eliminate the remaining unmeshable tiny faces SolidCraft reports on the 5-layer cube (56 faces at last check), or document the exact tessellation limit and filter them before writing.
+- **Full-part ergonomics.** When the merged export exceeds `max_step_triangles`, report the estimated layer/ROI budget and suggest a concrete `layer_range`/ROI. Report the number of disjoint components; add an explicit warning when a part is not one body because of tangent-only contacts.
+- **`cube.stl` end-to-end coverage.** Generate a full 10 mm cube probe/cache, export through the installed plugin's STEP capability (not only the core), and run SolidCraft interference. Add the probe/cache as a fixture or a reproducible helper script.
+- **Retire the clipping fallback.** Remove `trim_overlaps` from default/plugin docs and eventually from the code; keep `step_engine=merged` as the only overlap-resolution path. Avoid two competing behaviors in the UI.
+- **Dependency fallback.** Make missing `manifold3d`/`shapely` produce an actionable plugin result (install command or plugin-wheel guidance) instead of a traceback. Add a startup capability/config check.
+- **Versioned wheel key.** Add a migration helper or documented procedure for preset references after a wheel version bump, and add a regression test for the local key. Track upstream OrcaSlicer issue `#17100`.
+- **Process-data fallback.** On builds where `psGCodePostProcess` is not dispatched (`345efec6`), make the missing process data explicit and offer the exported-G-code path in the same result, rather than silently exporting geometry only.
+- **Optional-dependency CI.** Run the merged/trim test groups in a job that installs the optional extras, so the currently skipped tests are exercised in CI.
+
+**Acceptance**
+
+- Every STEP export reports `closed: true` or fails with a clear reason; `open_edges == 0`.
+- SolidCraft interference is `0` on the 5-layer cube and on the `cube.stl` end-to-end export.
+- No unmeshable faces in the SolidCraft import, or a documented, reproducible exception.
+- A full-part export that exceeds the triangle budget produces an actionable ROI/layer-range recommendation.
+- The plugin STEP capability is exercised on `tests/fixtures/models/cube.stl` from a clean checkout, not only through core unit tests.
+- `trim_overlaps` is no longer a default or recommended path.
+- Missing optional dependencies and versioned preset keys produce clear, tested errors or migrations.
+
+**Risks**
+
+- Coplanar merging can be slower and numerically delicate; validate with SolidCraft and OCCT.
+- Full `cube.stl` STEP may still be large; use a reduced layer range for the regression.
+- Upstream plugin keys and audit behavior may change between beta builds; pin and document.
+
 ## Cross-cutting workstreams
 
 - **Performance:** bead count, triangles, file size, wall time; budgets per phase.
@@ -302,6 +337,10 @@ The 2.5 build is the only plugin target (`src/slic3r/plugin` is absent at `v2.4.
 | D27 | Plugin packaging | Resolved | Self-contained wheel bundles the core; single-file `.py` for development |
 | D28 | Plugin cache flow | Resolved | Capture at `posSimplifyPath`; script export reads the cache |
 | D29 | Plugin progress model | Resolved | UI-thread script + progress checkpoints; no background thread in the adapter |
+| D30 | Planar STEP join model | Open | Validate mitred shells or switch to per-segment prisms; reject open shells |
+| D31 | Merged STEP simplification | Open | Coplanar merge or decimation; keep the shell closed |
+| D32 | Full-part STP budget UX | Open | Recommend ROI/layer range from the triangle estimate |
+| D33 | Clipping fallback | Resolved | Deprecate `trim_overlaps`; merged union is the supported overlap path |
 
 ## Risk register
 
@@ -345,6 +384,11 @@ The 2.5 build is the only plugin target (`src/slic3r/plugin` is absent at `v2.4.
 | UI-thread export | freeze on large STEP | ROI/layer range; document; move to a worker later |
 | `psGCodePostProcess` not dispatched | no automatic process data | explicit `gcode_path`; revisit on newer builds |
 | Planar STEP size | hundreds of MB for full parts | ROI/layer range; `step_stride`; `step_tolerance`; `max_step_faces` preflight |
+| Mitred planar shells | open bodies/fragments at sharp corners | validate closed shells; fall back to segment prisms |
+| Merged triangle B-rep size | slow imports and large files | coplanar merge/decimation; `max_step_triangles` and ROI guidance |
+| Tiny degenerate faces | SolidCraft unmeshed faces | filter slivers before STEP; regression check |
+| Full `cube.stl` gap | plugin path untested on the fixture | add full probe/cache and GUI STEP smoke |
+| Optional dependency install | merged/trim export fails | actionable dependency check; CI extras |
 | Separate bead bodies | not one unioned solid | per-bead merge is intentional for interface identity; a boolean kernel would be needed for full fusion |
 | Audit prompts outside `~/.config/OrcaSlicer` | export friction | plugin storage; G-code folder; declare permissions |
 | Two-build divergence (2.5 plugin vs 2.4.2 MCP) | confusion | pin builds; document roles; no plugin dependency on MCP |
@@ -355,6 +399,7 @@ The 2.5 build is the only plugin target (`src/slic3r/plugin` is absent at `v2.4.
 - **v0.2 (benchmark + physical geometry):** Phase 2 tooling complete (solver run pending) and Phase 2b complete; paper comparison and Ender 3 V2 Neo coupon measurements documented.
 - **v0.3 (adhesion):** Phase 3 and Phase 4 tooling complete; cohesive workflow + Abaqus template + process-informed bond quality (solver run, calibration, and physical validation pending).
 - **v1.0 (plugin):** Phase 5 complete; end-to-end OrcaSlicer UX verified on Linux 2.5.0-beta build `345efec6`; docs and wheel packaging; Pages tab and process-seam capture pending.
+- **v1.1 (hardening):** Phase 6 complete; planar/merged STEP shells validated closed, SolidCraft interference zero on the test cube, full `cube.stl` plugin coverage, optional-dependency CI, and retirement of the clipping fallback.
 
 ## References
 
