@@ -180,25 +180,28 @@ The 2.5 build is the only plugin target (`src/slic3r/plugin` is absent at `v2.4.
 
 **Goal:** replace the geometric proxy with explicit interface failure.
 
+**Status (2026-10-31): interface tooling complete; solver run pending.** Interface extraction with contact-area correction, cohesive cards and bilinear laws, mesh splitting with zero-thickness COH3D8 elements, the Abaqus cohesive deck, and the sensitivity matrix are implemented and tested. The card is an explicitly labelled starting estimate. CalculiX cohesive input and the solver validation remain open. See `docs/cohesive_interfaces.md`.
+
 **Deliverables**
 
-- Interface extraction from contacts: surfaces/elements, normals, areas.
-- Cohesive material cards: `σ_n`, `σ_s`, `G_Ic`, `G_IIc`, stiffness, damage evolution.
-- Solver templates: Abaqus and CalculiX (at least one end-to-end).
-- Calibration workflow: peel/shear/DCB or paper-derived starting values.
-- Sensitivity study: interface strength/toughness vs. macroscopic strength.
-- Comparison to the geometric proxy.
+- Interface extraction from contacts: surfaces/elements, normals, areas. **Done**, with `area_model` and mesh faces.
+- Cohesive material cards: `σ_n`, `σ_s`, `G_Ic`, `G_IIc`, stiffness, damage evolution. **Done**; initial card is uncalibrated.
+- Solver templates: Abaqus and CalculiX (at least one end-to-end). **Abaqus done**; CalculiX pending.
+- Calibration workflow: peel/shear/DCB or paper-derived starting values. **Plan done**; physical tests not run.
+- Sensitivity study: interface strength/toughness vs. macroscopic strength. **Law-level matrix done**; solver sweep pending.
+- Comparison to the geometric proxy. **Structural comparison documented**; strength comparison pending a solver run.
 
 **Acceptance**
 
-- A coupon simulation develops a discrete crack at the expected interface.
-- Mesh convergence at the interface.
-- The solver template runs from a clean checkout with documented commands.
-- The predicted trend is consistent with the paper/experiments.
+- A coupon simulation develops a discrete crack at the expected interface. **Pending solver run.**
+- Mesh convergence at the interface. **Pending.**
+- The solver template runs from a clean checkout with documented commands. **Generation passes; solver step pending.**
+- The predicted trend is consistent with the paper/experiments. **Pending.**
 
 **Risks**
 
 - Interface mesh complexity; solver support; calibration data; mode mixity; runtime.
+- Cohesive element count and junction nodes; area scaling depends on the 2.5D contact model.
 
 ## Phase 4 — Process-informed adhesion
 
@@ -281,6 +284,9 @@ The 2.5 build is the only plugin target (`src/slic3r/plugin` is absent at `v2.4.
 | D18 | Benchmark solver target | Open | Abaqus and CalculiX input writers implemented; no solver installed yet |
 | D19 | Benchmark mesh | Resolved | Voxel hex8 mesh; 0.05 mm or finer to resolve the paper strand |
 | D20 | Benchmark failure criterion | Resolved | Rankine for brittle PLA; von Mises only for comparison |
+| D21 | Cohesive area source | Resolved | Contact model area; voxel faces scaled by A_contact/A_face |
+| D22 | Cohesive solver target | Resolved | Abaqus COH3D8 end-to-end; CalculiX pending |
+| D23 | Cohesive card values | Open | Initial estimate only; calibrate with peel/shear/DCB |
 
 ## Risk register
 
@@ -314,6 +320,9 @@ The 2.5 build is the only plugin target (`src/slic3r/plugin` is absent at `v2.4.
 | Volume mesh absent | manual FEA meshing step | voxel hex8 export implemented |
 | Voxel interface area overestimate | cohesive stiffness too high | scale interface areas from contacts; refine voxels |
 | No solver available locally | benchmark cannot be executed | ship generated jobs; run on a solver host |
+| Uncalibrated cohesive card | non-predictive interface strength | flag `calibrated=false`; run calibration plan |
+| Cohesive junction elements | distorted elements at multi-bead nodes | inspect mesh; refine or tie junction nodes |
+| CalculiX cohesive gap | workaround scripts | Abaqus is the claimed target; add CalculiX later |
 | Audit prompts outside `~/.config/OrcaSlicer` | export friction | plugin storage; G-code folder; declare permissions |
 | Two-build divergence (2.5 plugin vs 2.4.2 MCP) | confusion | pin builds; document roles; no plugin dependency on MCP |
 
@@ -321,7 +330,7 @@ The 2.5 build is the only plugin target (`src/slic3r/plugin` is absent at `v2.4.
 
 - **v0.1 (geometry):** Phase 0 and Phase 1 core complete; plugin discovery/hook smoke test; real 20 mm cube fixture; ROI STEP + sidecar + report; volume/envelope/watertight gates pass; dedicated thin-wall/overhang/multi-material fixtures pending; docs and tests.
 - **v0.2 (benchmark + physical geometry):** Phase 2 tooling complete (solver run pending) and Phase 2b complete; paper comparison and Ender 3 V2 Neo coupon measurements documented.
-- **v0.3 (adhesion):** Phase 3 complete; cohesive workflow + solver template.
+- **v0.3 (adhesion):** Phase 3 tooling complete; cohesive workflow + Abaqus template (solver run and calibration pending).
 - **v1.0 (plugin):** Phase 5 complete; end-to-end OrcaSlicer UX; docs; packaging.
 
 ## References
