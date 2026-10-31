@@ -59,6 +59,29 @@ class CliTests(unittest.TestCase):
             report_b = json.loads((second / "report.json").read_text())
             self.assertEqual(report_a["content_hash"], report_b["content_hash"])
 
+    def test_planar_step_export(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "out"
+            step = out / "beads.step"
+            completed = self.run_cli(
+                "--probe",
+                str(PROBE),
+                "--out",
+                str(out),
+                "--resolution",
+                "0.2",
+                "--step",
+                str(step),
+                "--step-engine",
+                "planar",
+            )
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            self.assertTrue(step.exists())
+            text = step.read_text()
+            self.assertTrue(text.startswith("ISO-10303-21;"))
+            self.assertIn("MANIFOLD_SOLID_BREP", text)
+            self.assertIn("planar", completed.stdout)
+
     def test_missing_probe_fails(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             completed = self.run_cli(

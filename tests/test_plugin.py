@@ -227,7 +227,7 @@ class PluginTests(unittest.TestCase):
         self.plugin.GCodeFEAPlugin().register_capabilities()
         self.assertEqual(
             [cls.__name__ for cls in self.orca.registered],
-            ["CaptureSliceCache", "ExportFEAGeometry"],
+            ["CaptureSliceCache", "ExportFEAGeometry", "ExportSTEPViewable"],
         )
         self.assertEqual(len(self.orca.permission_requests), 1)
         roots = self.orca.permission_requests[0]["fs_read"]
@@ -236,9 +236,12 @@ class PluginTests(unittest.TestCase):
     def test_default_configs(self) -> None:
         capture = self.plugin.CaptureSliceCache().get_default_config()
         export = self.plugin.ExportFEAGeometry().get_default_config()
+        step = self.plugin.ExportSTEPViewable().get_default_config()
         self.assertIn("max_layers", capture)
         for key in ("mode", "resolution", "formats", "write_step", "core_path"):
             self.assertIn(key, export)
+        for key in ("step_stride", "step_engine", "max_step_faces", "roi"):
+            self.assertIn(key, step)
 
     def test_capture_writes_cache(self) -> None:
         capability = self.make_capture()
@@ -288,6 +291,42 @@ class PluginTests(unittest.TestCase):
         self.assertTrue(Path(payload["files"]["report"]).exists())
         self.assertGreaterEqual(len(self.orca.host.ui.next_handle.calls), 2)
         self.assertTrue(self.orca.host.ui.next_handle.closed)
+
+    def test_step_export_after_capture(self) -> None:
+        self.make_capture().execute(
+            FakeContext(FakeObject([FakeLayer(0, 0.2)]))
+        )
+        capability = self.plugin.ExportSTEPViewable()
+        capability.config_json = json.dumps(
+            {
+                "core_path": str(REPO_ROOT / "src"),
+                "step_engine": "planar",
+                "step_stride": 2,
+            }
+        )
+        result = capability.execute()
+        self.assertEqual(result.status, "success", result.message)
+        payload = json.loads(result.data)
+        self.assertEqual(payload["engine"], "planar")
+        step = Path(payload["file"])
+        self.assertTrue(step.exists())
+        self.assertGreater(payload["solids"], 0)
+        self.assertTrue(step.read_text().startswith("ISO-10303-21;"))
+
+    def test_step_export_face_limit(self) -> None:
+        self.make_capture().execute(
+            FakeContext(FakeObject([FakeLayer(0, 0.2)]))
+        )
+        capability = self.plugin.ExportSTEPViewable()
+        capability.config_json = json.dumps(
+            {
+                "core_path": str(REPO_ROOT / "src"),
+                "max_step_faces": 5,
+            }
+        )
+        result = capability.execute()
+        self.assertEqual(result.status, "recoverable")
+        self.assertIn("preflight", result.message.lower())
 
     def test_export_uses_kept_gcode(self) -> None:
         self.make_capture().execute(
