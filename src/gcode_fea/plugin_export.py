@@ -48,6 +48,13 @@ def export_from_cache(
     model = model.filter_roi(config.roi, config.layer_range)
     if not model.beads:
         raise ValueError("the region of interest contains no beads")
+    trim_report = None
+    if config.trim_overlaps:
+        from .trim import trim_model
+
+        model, trim_report = trim_model(model)
+        if not model.beads:
+            raise ValueError("trimming removed every bead")
     out.mkdir(parents=True, exist_ok=True)
 
     _report(progress, 0.15, "Detecting contacts")
@@ -99,6 +106,14 @@ def export_from_cache(
         resolution=config.resolution,
         mesh_summary=mesh_summary,
         roi=config.roi,
+        warnings=(
+            [
+                "trim_overlaps changed the deposited volume by "
+                f"{trim_report['volume_relative_change']:.2%}"
+            ]
+            if trim_report
+            else None
+        ),
         interfaces=interfaces,
         adhesion=adhesion,
     )
@@ -147,6 +162,7 @@ def export_from_cache(
         "volume": model.volume,
         "contacts": stats["count"],
         "interfaces": interface_report(interfaces) if interfaces else None,
+        "trim": trim_report,
         "mean_bond_quality": (
             sum(item.bond_quality for item in interfaces) / len(interfaces)
             if interfaces
@@ -186,6 +202,13 @@ def export_step_from_cache(
     model = model.filter_roi(config.roi, config.layer_range)
     if not model.beads:
         raise ValueError("the region of interest contains no beads")
+    trim_report = None
+    if config.trim_overlaps:
+        from .trim import trim_model
+
+        model, trim_report = trim_model(model)
+        if not model.beads:
+            raise ValueError("trimming removed every bead")
 
     from .step_planar import estimate_faces
 
@@ -214,6 +237,7 @@ def export_step_from_cache(
         "bead_count": len(model.beads),
         "layer_count": len(model.layers()),
         "engine": result.get("engine"),
+        "trim": trim_report,
         "solids": result.get("solids", result.get("segment_prisms")),
         "faces": estimate_faces(
             model, config.step_stride, config.step_tolerance

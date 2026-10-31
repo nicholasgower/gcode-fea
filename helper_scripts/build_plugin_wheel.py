@@ -63,6 +63,7 @@ def build_wheel(
             "License: MIT",
             "Requires-Python: >=3.12",
             "Requires-Dist: numpy>=1.26",
+            "Requires-Dist: shapely>=2.0",
             "Import-Name: gcode_fea_plugin",
             "",
         ]

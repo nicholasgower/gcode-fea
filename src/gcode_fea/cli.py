@@ -52,6 +52,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--layer-range", type=parse_layer_range, help="first,last layer index")
     parser.add_argument("--resolution", type=float, default=0.1, help="contact grid resolution (mm)")
     parser.add_argument("--join", choices=("segments", "miter"), default="segments")
+    parser.add_argument(
+        "--trim-overlaps",
+        action="store_true",
+        help="clip infill bead ends at wall footprints (requires shapely)",
+    )
     parser.add_argument("--no-mesh", action="store_true", help="skip mesh generation/statistics")
     parser.add_argument("--no-contacts", action="store_true", help="skip contact detection")
     parser.add_argument("--stl", type=Path, help="write a binary STL to this path")
@@ -101,6 +106,18 @@ def main(argv: list[str] | None = None) -> int:
     if not model.beads:
         print("error: ROI contains no beads", file=sys.stderr)
         return 1
+    trim_report = None
+    if args.trim_overlaps:
+        try:
+            from .trim import trim_model
+
+            model, trim_report = trim_model(model)
+        except RuntimeError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+        if not model.beads:
+            print("error: trimming removed every bead", file=sys.stderr)
+            return 1
 
     contacts = []
     if not args.no_contacts:
@@ -169,6 +186,11 @@ def main(argv: list[str] | None = None) -> int:
         f"({summary['intralayer_count']} intralayer, "
         f"{summary['interlayer_count']} interlayer)"
     )
+    if trim_report:
+        print(
+            f"trimmed: {trim_report['trimmed_beads']} bead(s), "
+            f"volume change {trim_report['volume_relative_change']:.2%}"
+        )
     print(f"sidecar: {sidecar_path}")
     print(f"report: {report_path} ({report['content_hash']})")
     if stl_path:

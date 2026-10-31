@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.12"
-# dependencies = ["numpy"]
+# dependencies = ["numpy", "shapely>=2.0"]
 #
 # [tool.orcaslicer.plugin]
 # name = "GCode-FEA"
@@ -173,6 +173,7 @@ class ExportFEAGeometry(orca.script.ScriptPluginCapabilityBase):
             "output_dir": "",
             "gcode_path": "",
             "ask_output_dir": True,
+            "trim_overlaps": False,
         }
 
     def execute(self) -> orca.ExecutionResult:
@@ -298,6 +299,7 @@ class ExportSTEPViewable(orca.script.ScriptPluginCapabilityBase):
             "output_dir": "",
             "save_path": "",
             "ask_save_path": True,
+            "trim_overlaps": True,
         }
 
     def execute(self) -> orca.ExecutionResult:

@@ -39,6 +39,7 @@ class PluginConfig:
     save_path: str = ""
     ask_output_dir: bool = True
     ask_save_path: bool = True
+    trim_overlaps: bool = False
     probe_path: str = ""
     gcode_path: str = ""
     open_after_export: bool = False
