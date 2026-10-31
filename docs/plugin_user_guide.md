@@ -211,6 +211,22 @@ the boolean removes their overlaps. Verified with SolidCraft’s interference
 tool on a 5-layer 20 mm cube: one closed body and **0 interferences** (the
 earlier mitred version produced 7 bodies with 4 overlapping fragments).
 
+### What it looks like in a STEP viewer
+
+These are actual plugin exports opened in SolidCraft.
+
+**Planar export — one body per bead**
+
+![Planar STEP export](images/step-planar.png)
+
+**Vertical section — stacked beads, cross-sections, and voids**
+
+![Section through the bead structure](images/step-section.png)
+
+**Merged export — one continuous body**
+
+![Merged STEP export](images/step-merged.png)
+
 Curved sections are simplified with `step_tolerance` (maximum chord deviation
 in mm) before union. Full parts get large; the merged engine refuses more than
 `max_step_triangles` (default 60,000), and the planar engine refuses more than

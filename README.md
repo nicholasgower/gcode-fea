@@ -32,6 +32,28 @@ An export can produce:
 
 The JSON sidecar is the important part for research: the STEP file is just shape, while the sidecar carries the measurements and assumptions behind it.
 
+## What it looks like
+
+These screenshots are actual STEP files exported by GCode-FEA and opened in [SolidCraft](https://getartcraft.com/apps/solidcraft).
+
+**Planar export: every bead remains its own body**
+
+![Planar STEP export showing individual bead strands](docs/images/step-planar.png)
+
+This is the first 25 layers of the 20 mm cube test fixture (about 5 mm tall). The top surface shows the printed bead paths. The planar engine preserves bead identity, so you can still see each strand and the gaps between them.
+
+**Section through the same export: layers, bead cross-sections, and voids**
+
+![Section view showing stacked beads and internal gaps](docs/images/step-section.png)
+
+A vertical cut reveals how the beads stack layer by layer, where they touch, and where the voids are. The tan hatched faces are the cut cross-sections.
+
+**Merged export: overlapping beads become one body**
+
+![Merged STEP export showing one continuous body](docs/images/step-merged.png)
+
+The merged engine boolean-unions overlapping beads into a single closed body. This is the default for viewing, because it avoids interpenetrating solids and imports more cleanly. This view is the first two layers of the same cube.
+
 ## Who this is for
 
 - **Researchers** studying fracture and layer adhesion in fused-filament fabrication (FFF) prints.
