@@ -15,7 +15,17 @@ from gcode_fea.cache import load_probe  # noqa: E402
 from gcode_fea.step_planar import write_step_planar  # noqa: E402
 
 PROBE = REPO_ROOT / "tests" / "fixtures" / "phase0" / "phase0_probe_obj102.json"
-HAVE_GMSH = importlib.util.find_spec("gmsh") is not None
+
+
+def _gmsh_available() -> bool:
+    try:
+        import gmsh  # noqa: F401
+    except Exception:
+        return False
+    return True
+
+
+HAVE_GMSH = _gmsh_available()
 
 OPEN_SHELL_STEP = """ISO-10303-21;
 HEADER;
@@ -89,7 +99,7 @@ class StepAuditTests(unittest.TestCase):
                 step_audit.main([str(Path(tmp) / "missing.step")]), 2
             )
 
-    @unittest.skipUnless(HAVE_GMSH, "gmsh is not installed")
+    @unittest.skipUnless(HAVE_GMSH, "gmsh is not installed or could not be loaded")
     def test_occt_solid_count_matches(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "beads.step"

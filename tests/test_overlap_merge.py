@@ -16,7 +16,17 @@ from gcode_fea.merged_step import write_step_merged
 from gcode_fea.model import Bead, SliceModel
 
 HAVE_MANIFOLD = importlib.util.find_spec("manifold3d") is not None
-HAVE_GMSH = importlib.util.find_spec("gmsh") is not None
+
+
+def _gmsh_available() -> bool:
+    try:
+        import gmsh  # noqa: F401
+    except Exception:
+        return False
+    return True
+
+
+HAVE_GMSH = _gmsh_available()
 
 
 def make_bead(bead_id: str, points, width: float = 0.45) -> Bead:
@@ -76,7 +86,7 @@ class PerpendicularOverlapTests(unittest.TestCase):
         self.assertLess(result["volume"], bead_sum)
         self.assertGreater(result["volume"], max(bead.volume for bead in model.beads))
 
-    @unittest.skipUnless(HAVE_GMSH, "gmsh is not installed")
+    @unittest.skipUnless(HAVE_GMSH, "gmsh is not installed or could not be loaded")
     def test_occt_reads_one_solid_with_the_union_volume(self) -> None:
         import gmsh
 

@@ -19,6 +19,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install gmsh runtime libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libglu1-mesa libgl1 libxrender1 libxft2 libxinerama1 \
+            libxcursor1 libxfixes3
+
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           python-version: "3.12"

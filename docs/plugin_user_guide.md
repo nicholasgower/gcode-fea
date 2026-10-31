@@ -387,6 +387,10 @@ Logs: `~/.config/OrcaSlicer/log/python_*.log` (tracebacks) and
   OrcaSlicer source is copied into the plugin or the core.
 - gmsh is GPL-2.0-or-later and is **not** bundled; STEP export requires it in
   the plugin environment, or use the CLI with `uv run --with gmsh`.
+- On Linux, the gmsh wheel also needs the GLU/X runtime libraries. If
+  `import gmsh` fails with `libGLU.so.1: cannot open shared object file`,
+  install `libglu1-mesa` (and the usual X libraries) or use the `planar`
+  engine. `step_engine: "auto"` falls back to planar when gmsh cannot load.
 - The paper is CC BY 4.0; see `CREDITS.md`.
 
 ## Verification status

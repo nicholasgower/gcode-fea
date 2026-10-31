@@ -225,7 +225,9 @@ class PluginTests(unittest.TestCase):
     def test_registration(self) -> None:
         self.orca.registered.clear()
         self.orca.permission_requests.clear()
-        self.plugin.GCodeFEAPlugin().register_capabilities()
+        found = {"zenity": "/usr/bin/zenity", "sh": "/usr/bin/sh"}
+        with mock.patch("shutil.which", side_effect=found.get):
+            self.plugin.GCodeFEAPlugin().register_capabilities()
         self.assertEqual(
             [cls.__name__ for cls in self.orca.registered],
             ["CaptureSliceCache", "ExportFEAGeometry", "ExportSTEPViewable"],
@@ -234,7 +236,7 @@ class PluginTests(unittest.TestCase):
         request = self.orca.permission_requests[0]
         self.assertIsInstance(request["process"], list)
         self.assertTrue(request["process"])
-        self.assertTrue(any("zenity" in target for target in request["process"]))
+        self.assertIn("/usr/bin/zenity", request["process"])
         self.assertTrue(any("sh" in target for target in request["process"]))
 
     def test_default_configs(self) -> None:

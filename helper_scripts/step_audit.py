@@ -162,8 +162,12 @@ def audit_step(text: str) -> dict:
 def occt_report(path: Path) -> dict:
     try:
         import gmsh
-    except ImportError as exc:  # pragma: no cover - optional dependency
-        raise RuntimeError("gmsh is not installed; run with --with gmsh") from exc
+    except (ImportError, OSError) as exc:  # pragma: no cover - optional dependency
+        raise RuntimeError(
+            "gmsh is installed but could not be loaded "
+            f"({exc}); install its system libraries (for example "
+            "`libglu1-mesa`) or run without --occt"
+        ) from exc
 
     gmsh.initialize()
     gmsh.option.setNumber("General.Terminal", 0)

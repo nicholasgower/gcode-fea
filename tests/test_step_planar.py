@@ -20,6 +20,17 @@ PROBE = REPO_ROOT / "tests" / "fixtures" / "phase0" / "phase0_probe_obj102.json"
 HAVE_SHAPELY = importlib.util.find_spec("shapely") is not None
 
 
+def _gmsh_available() -> bool:
+    try:
+        import gmsh  # noqa: F401
+    except Exception:
+        return False
+    return True
+
+
+HAVE_GMSH = _gmsh_available()
+
+
 class PlanarStepTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -139,15 +150,18 @@ class PlanarStepTests(unittest.TestCase):
             self.assertIn(result["engine"], ("gmsh", "planar"))
 
     def test_gmsh_engine_requires_gmsh(self) -> None:
-        if importlib.util.find_spec("gmsh") is not None:
-            self.skipTest("gmsh is installed; the missing-dependency path is not exercised")
+        if HAVE_GMSH:
+            self.skipTest(
+                "gmsh is loadable; the unavailable-dependency path is not exercised"
+            )
         with tempfile.TemporaryDirectory() as tmp:
-            with self.assertRaises(RuntimeError):
+            with self.assertRaises(RuntimeError) as context:
                 export_step(
                     self.model,
                     Path(tmp) / "beads.step",
                     step_engine="gmsh",
                 )
+            self.assertIn("gmsh", str(context.exception))
 
     def test_unknown_engine(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

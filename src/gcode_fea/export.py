@@ -84,12 +84,13 @@ def export_step(
         )
     try:
         import gmsh
-    except ImportError:
+    except (ImportError, OSError) as exc:
         if step_engine == "gmsh":
             raise RuntimeError(
-                "gmsh is required for the gmsh STEP engine; use "
-                "`--step-engine planar` or `uv run --with gmsh ...`"
-            )
+                "gmsh is required for the gmsh STEP engine but could not be "
+                f"loaded ({exc}); install its system libraries (for example "
+                "`libglu1-mesa`) or use `--step-engine planar`"
+            ) from exc
         return _export_step_planar(
             model, target, profile_stride, step_tolerance
         )
