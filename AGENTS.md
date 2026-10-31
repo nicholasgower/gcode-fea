@@ -15,7 +15,7 @@ The output is not the nominal CAD surface. It is the geometry the printer actual
 
 ## 2. Status
 
-Phase 0 integration spike complete (2026-10-31). The probe plugin, the GUI slicing hook, and the minimal one-bead STEP path work; see `docs/phase0_report.md`. The core geometry pipeline is not implemented yet. This document records the modeling assumptions, integration facts, and engineering rules that the implementation must follow. The phased plan is in `ROADMAP.md`.
+Phase 0 integration spike and Phase 1 core geometry MVP complete (2026-10-31). The core ingests Phase 0/Phase 1 probes or caches, solves cross-sections, builds bead meshes, detects contacts, filters ROI, and writes sidecar/report/STL/STEP. Phase 2 (paper benchmark) is next. See `docs/phase0_report.md` and `docs/phase1_report.md`. This document records the modeling assumptions, integration facts, and engineering rules that the implementation must follow. The phased plan is in `ROADMAP.md`.
 
 Open decisions are tracked in `ROADMAP.md`; do not silently resolve them in code.
 
@@ -24,14 +24,16 @@ Open decisions are tracked in `ROADMAP.md`; do not silently resolve them in code
 Current:
 
 ```text
-AGENTS.md, ROADMAP.md, CREDITS.md, LICENSE
+AGENTS.md, ROADMAP.md, CREDITS.md, LICENSE, pyproject.toml
 sources/fracture_behavior/   # Seibel & Kiendl (2025) paper and license
-src/gcode_fea/               # package stubs
-plugins/phase0_probe/        # Phase 0 slicing-pipeline probe
+src/gcode_fea/               # core: model, cross-sections, cache, sweep, contacts, export, report, cli
+plugins/phase0_probe/        # Phase 0/Phase 1 slicing-pipeline probe
 helper_scripts/              # env doctor, slice wrapper, plugin sync, Phase 0 bead builder
-tests/                       # helper tests and fixtures
-tests/fixtures/phase0/       # real probe JSON + minimal bead STEP/report
+tests/                       # helper and core tests
+tests/fixtures/phase0/       # one-layer probe + minimal bead STEP/report
+tests/fixtures/phase1/       # real 20 mm cube probe + report
 docs/phase0_report.md        # Phase 0 results and findings
+docs/phase1_report.md        # Phase 1 core geometry results and limitations
 ```
 
 Planned:
@@ -202,6 +204,7 @@ Plugin API facts for the pinned build (upstream documentation; no plugin hook ha
 - A preset selects a pipeline plugin with both `slicing_pipeline_plugin` and the dynamic `plugins` array. The reference is `<plugin_key>;;<capability_name>` (for example `phase0_probe;;Phase0 Probe`), not the display name.
 - A sideloaded plugin must be activated: `.install_state.json` with `enabled: true` and the capability enabled, or the Plugins dialog. Discovery alone is not enough.
 - The probe wrote `~/.config/OrcaSlicer/orca_plugins/plugin_data/phase0_probe/phase0_probe_obj102.json`; the hook ran at `posSimplifyPath` and slicing completed.
+- The probe also writes `phase1_probe_obj<id>.json` with all layers (capped at 200). The real 20 mm cube fixture has 100 layers and 390 beads.
 - Slicer nominal width can differ from the volume-derived width (9.4% on the default flow). Conserve `mm3_per_mm` and report the delta.
 - gmsh/OCCT is the Phase 0/Phase 1 prototype toolchain. `build123d` was attempted but its dependency tree exceeded available disk space; gmsh is much lighter.
 
@@ -289,10 +292,11 @@ Default to region of interest for bead-resolved exports. Full-part bead B-rep is
 - Determinism: stable IDs, sorted iteration, no unordered-map order in outputs.
 - Errors: structured codes + human-readable messages; never silently drop a bead.
 - Performance: measure bead count, triangles, file size, and wall time. Set and update budgets in `ROADMAP.md`.
-- Tests: unit tests for cross-sections and contacts; integration tests for small slices; plugin discovery/hook smoke tests in 2.5; benchmark tests for the paper; regression tests for golden volumes/hashes.
+- Tests: unit tests for cross-sections, cache, sweep, contacts, ROI, and report; integration test on the real 20 mm cube fixture; plugin discovery/hook smoke tests in 2.5; benchmark tests for the paper; regression tests for golden volumes/hashes.
 - OrcaSlicer paths: config/plugins/logs under `~/.config/OrcaSlicer`; plugin target 2.5.0-beta build `345efec6`; MCP target 2.4.2-mcp.13.
 - Reference printer: Creality Ender 3 V2 Neo. Use its OrcaSlicer profile for physical tests and record the exact print settings with each coupon.
-- License: MIT for original project code (`LICENSE`); preserve `CREDITS.md`. The paper is CC BY 4.0; OrcaSlicer and the MaxEllis fork are AGPL-3.0. Do not copy AGPL code into the MIT core; review combined-work obligations before distributing a bundled plugin or modified OrcaSlicer. When the Python project skeleton is created, declare `license = { text = "MIT" }` in `pyproject.toml`.
+- Phase 1 core defaults: `volume_conserving` cross-section, segment-prism compound sweep, 2.5D contact grid, polygonal STEP profile. Use `--join miter` only for comparison, and use ROI for STEP exports.
+- License: MIT for original project code (`LICENSE`); preserve `CREDITS.md`. The paper is CC BY 4.0; OrcaSlicer and the MaxEllis fork are AGPL-3.0. Do not copy AGPL code into the MIT core; review combined-work obligations before distributing a bundled plugin or modified OrcaSlicer. The Python project declares `license = { text = "MIT" }` in `pyproject.toml`.
 - Style: Python 3.12+, type hints, `ruff`/`black` (or the project's chosen formatter), `pytest`. Keep the core free of GUI and OrcaSlicer imports.
 
 ## 13. Validation gates
@@ -309,6 +313,7 @@ A change is not done until:
 8. **Plugin discovery:** the 2.5 plugin manager finds the plugin (`Found 1 plugin manifest`) and the `posSimplifyPath` hook runs on pinned build `345efec6`.
 9. **Permissions:** outputs go to plugin storage or a permitted export folder; any audit prompt is expected and documented.
 10. **Physical geometry:** on the Ender 3 V2 Neo, coupon mass/volume, outer dimensions, and cross-section/contact measurements are within the agreed tolerances; deviations and their likely causes are reported.
+11. **Core mesh:** analytic vs mesh volume within 1%; watertight fraction at least 99.9% for segment prisms; report content hash stable across repeated runs.
 
 ## 14. Agent do / don't
 
@@ -324,6 +329,8 @@ Do:
 - Test the plugin in the 2.5 app, not the 2.4.2 MCP fork.
 - Record the Ender 3 V2 Neo profile and exact print settings with every physical coupon.
 - Keep `LICENSE` and `CREDITS.md` current when adding code or third-party material.
+- Use the segment-prism compound as the default and report analytic vs mesh volume.
+- Report contact resolution and the 2.5D aggregation caveat.
 
 Don't:
 
@@ -331,6 +338,7 @@ Don't:
 - Don't use a generic printer profile for physical validation.
 - Don't treat the paper's `c_v` or material data as universal; recalibrate on the Ender 3 V2 Neo.
 - Don't copy AGPL-licensed OrcaSlicer code into the MIT core without reviewing license compatibility.
+- Don't call the segment-prism compound a fused solid, and don't claim contact patches it does not produce.
 - Don't default to a whole-part bead B-rep.
 - Don't silently union beads and lose interface identity.
 - Don't claim the paper benchmark passes until the comparison is in `docs/`.
@@ -339,7 +347,7 @@ Don't:
 
 ## 15. Commands
 
-Project commands are targets; update them when the project skeleton exists. The OrcaSlicer 2.5 helper commands below are verified.
+The package skeleton exists (`pyproject.toml`); the OrcaSlicer helper and Phase 1 core commands below are verified.
 
 Canonical OrcaSlicer 2.5 headless path (verified 2026-10-31):
 
@@ -415,20 +423,31 @@ The default run writes `out/phase0_bead.step` and
 `tests/fixtures/phase0/` copies. See `docs/phase0_report.md` for the full
 results and acceptance checklist.
 
-Project commands (planned):
+Phase 1 core (verified 2026-10-31):
 
 ```bash
 uv sync
-uv run pytest
-uv run gcode-fea export --gcode examples/cube.gcode --out out/cube.step
-uv run gcode-fea export --slice-cache out/cube.beads.json --mode volume-conserving --roi 10,10,0,30,30,20
-uv run gcode-fea validate out/cube.report.json
+uv run python -m unittest discover -s tests -p "test_*.py" -v
+uv run python -m gcode_fea.cli \
+  --probe tests/fixtures/phase1/cube20_probe.json \
+  --out out/phase1-cube20 --resolution 0.2
+uv run --with gmsh python -m gcode_fea.cli \
+  --probe tests/fixtures/phase0/phase0_probe_obj102.json \
+  --out out/phase1-step --step out/phase1-step/beads.step
 ```
+
+Expected core artifacts: `beads.json`, `report.json`, optional `beads.stl`,
+optional `beads.step`. The 20 mm cube fixture has 390 beads in 100 layers.
+See `docs/phase1_report.md` for acceptance results and limitations.
+
+Planned: G-code input fallback, volume-mesh export, fused STEP, multi-material
+and support data.
 
 ## 16. References
 
 - Seibel, S., Kiendl, J. (2025). *A finite element approach for modelling the fracture behaviour of unidirectional FFF-printed parts.* Progress in Additive Manufacturing 10:6981–6992. https://doi.org/10.1007/s40964-025-01021-8. Local copy: `sources/fracture_behavior/fracture_behavior_FFF.pdf` (CC BY 4.0).
 - Attribution and credits: `CREDITS.md` (project MIT license, paper citation, CC BY 4.0 notice, changes made, software credits).
+- Phase 1 core report: `docs/phase1_report.md` (algorithms, 20 mm cube results, limitations).
 - OrcaSlicer plugin system: https://www.orcaslicer.com/wiki/developer_reference/plugin_development/plugin_system.html
 - OrcaSlicer plugin development: https://www.orcaslicer.com/wiki/developer_reference/plugin_development/plugin_development.html
 - OrcaSlicer slicing API: https://www.orcaslicer.com/wiki/developer_reference/plugin_development/api_reference/slicing.html

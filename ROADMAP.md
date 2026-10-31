@@ -72,29 +72,41 @@ The 2.5 build is the only plugin target (`src/slic3r/plugin` is absent at `v2.4.
 
 **Goal:** a complete, standalone geometry pipeline.
 
+**Status (2026-10-31): core MVP complete.** The core ingests Phase 0/Phase 1 probes and caches, solves cross-sections, meshes beads, detects contacts, filters ROI, and writes sidecar/report/STL/STEP. See `docs/phase1_report.md`.
+
 **Deliverables**
 
-- Slice-cache schema and reader/writer.
-- Cross-section solver for the rounded octagon/barrel; three volume modes.
-- Sweep/mesh generation for straight and curved paths; joins; caps.
-- gmsh/OCCT-backed STEP/mesh prototype behind an export interface.
-- Contact detection: intralayer and interlayer; contact area, normal, centroid, gap/overlap.
-- ROI: object, bbox, layer range, mesh volume.
-- STEP export: faceted and analytic; bead compound, fused, glued, envelope.
-- Optional volume mesh export with element sets.
-- Sidecar and report.
-- Unit/integration tests and small fixtures.
+- Slice-cache schema and reader/writer. **Done.**
+- Cross-section solver for the rounded octagon/barrel; three volume modes. **Done.**
+- Sweep/mesh generation for straight and curved paths; joins; caps. **Done** as a segment-prism compound; optional miter sweep.
+- gmsh/OCCT-backed STEP/mesh prototype behind an export interface. **Done** for STL and polygonal-profile STEP.
+- Contact detection: intralayer and interlayer; contact area, normal, centroid, gap/overlap. **Done** with a 2.5D footprint grid.
+- ROI: object, bbox, layer range, mesh volume. **Partially done** (bbox/layer range; mesh-volume ROI pending).
+- STEP export: faceted and analytic; bead compound, fused, glued, envelope. **Partial:** bead compound of segment prisms; fused/glued/envelope pending.
+- Optional volume mesh export with element sets. **Not done**.
+- Sidecar and report. **Done**, with a deterministic content hash.
+- Unit/integration tests and small fixtures. **Done:** 41 tests, real 20 mm cube fixture.
 
 **Acceptance**
 
-- 20 mm cube, thin-wall test, overhang/bridge test, multi-material test.
-- Volume within 1%; envelope within one line width; >99.9% watertight.
-- Deterministic IDs and report.
-- Performance budget met for the agreed ROI size.
+- 20 mm cube: **pass** (390 beads, 100 layers).
+- Thin-wall: the cube has a two-wall perimeter; a dedicated thin-wall fixture is pending.
+- Overhang/bridge: the cube contains an internal-bridge role; the no-droop assumption is documented, and a dedicated overhang coupon is pending.
+- Multi-material: **pending**; the model/report support labels, but the plugin graph does not expose per-path material.
+- Volume within 1%: **pass** (`0.05%` mesh vs analytic).
+- Envelope within one line width: **pass** (`3.4 µm` bbox deviation).
+- >99.9% watertight: **pass** (100% of beads; compounds, not fused).
+- Deterministic IDs and report: **pass** (content hash stable across runs).
+- Performance: 390 beads/100 layers run in seconds; no formal budget yet. STEP size is the binding constraint.
 
 **Risks**
 
 - Bead count; boolean cost; self-intersections; sparse-infill contact complexity; file size.
+- Segment prisms are a compound with internal caps; fusing is downstream.
+- 2.5D contacts aggregate closed-loop pairs and do not split contact patches.
+- STEP uses a polygonal profile and grows quickly; ROI/stride are required.
+- Multi-material, supports, and per-path process data remain unavailable from the plugin graph.
+- Volume-mesh export is not implemented.
 
 ## Phase 2 — Paper benchmark
 
@@ -261,6 +273,8 @@ The 2.5 build is the only plugin target (`src/slic3r/plugin` is absent at `v2.4.
 | D13 | Project license | Resolved | MIT for original code and documentation; paper stays CC BY 4.0; third-party licenses remain |
 | D14 | Phase 0 toolchain | Resolved | gmsh/OCCT for the prototype; build123d not used due to dependency weight/disk |
 | D15 | Plugin hook execution | Resolved | GUI-only in 2.5.0-beta; CLI for core tests, GUI/manual for plugin hooks |
+| D16 | Sweep join model | Resolved | Segment-prism compound default; miter sweep optional (volume loss at corners) |
+| D17 | Contact model | Resolved | 2.5D footprint grid; contact-patch splitting is future work |
 
 ## Risk register
 
@@ -287,12 +301,17 @@ The 2.5 build is the only plugin target (`src/slic3r/plugin` is absent at `v2.4.
 | Plugin hooks GUI-only | no headless plugin CI | GUI automation; upstream CLI plugin mode; core tests stay headless |
 | Nominal vs derived width | geometry mismatch | volume-conserving cross-section; report the delta |
 | Sideload activation/reference | probe does not run | `.install_state.json` + `plugins` reference (`<plugin_key>;;<capability_name>`) |
+| Segment compound internal caps | not a single fused solid | fuse downstream; document |
+| 2.5D contact approximation | aggregated/closed-loop contacts | finer grid; patch splitting; validate |
+| STEP size (polygonal profile) | large files | ROI; stride with error check; fused/faceted later |
+| Multi-material data gap | no per-path material | add plugin binding/G-code; report default |
+| Volume mesh absent | manual FEA meshing step | add hex/tet export |
 | Audit prompts outside `~/.config/OrcaSlicer` | export friction | plugin storage; G-code folder; declare permissions |
 | Two-build divergence (2.5 plugin vs 2.4.2 MCP) | confusion | pin builds; document roles; no plugin dependency on MCP |
 
 ## Definition of done
 
-- **v0.1 (geometry):** Phase 0–1 complete; plugin discovery/hook smoke test on 2.5.0-beta; ROI STEP + sidecar + report; volume/envelope/watertight gates pass; docs and tests.
+- **v0.1 (geometry):** Phase 0 and Phase 1 core complete; plugin discovery/hook smoke test; real 20 mm cube fixture; ROI STEP + sidecar + report; volume/envelope/watertight gates pass; dedicated thin-wall/overhang/multi-material fixtures pending; docs and tests.
 - **v0.2 (benchmark + physical geometry):** Phase 2 and 2b complete; paper comparison and Ender 3 V2 Neo coupon measurements documented.
 - **v0.3 (adhesion):** Phase 3 complete; cohesive workflow + solver template.
 - **v1.0 (plugin):** Phase 5 complete; end-to-end OrcaSlicer UX; docs; packaging.

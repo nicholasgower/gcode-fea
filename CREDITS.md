@@ -68,8 +68,9 @@ This project also depends on or is developed alongside:
 - **OrcaSlicer** — the slicer targeted by the plugin. https://github.com/OrcaSlicer/OrcaSlicer — AGPL-3.0-only.
 - **MaxEllis OrcaSlicer fork** — the build that provides the Remote API used by the optional MCP tooling. https://github.com/MaxEllis/OrcaSlicer — AGPL-3.0-only.
 - **orcaslicer-mcp** — the optional MCP server used during development. https://github.com/MaxEllis/orcaslicer-mcp — AGPL-3.0-only.
-- **gmsh** — Phase 0 STEP construction and meshing prototype. https://gmsh.info — GPL-2.0-or-later.
+- **gmsh** — Phase 0/Phase 1 STEP construction and meshing prototype. https://gmsh.info — GPL-2.0-or-later.
 - **OpenCASCADE (OCCT)** — B-rep kernel used through gmsh. https://dev.opencascade.org — LGPL-2.1 with exception.
+- **NumPy** — array and mesh/contact numerics. https://numpy.org — BSD-3-Clause.
 
 The paper's CC BY 4.0 license applies to the paper and its included material. This project's original code and documentation are MIT-licensed; see `LICENSE`. OrcaSlicer and the MaxEllis fork are AGPL-3.0-only; the plugin runs inside OrcaSlicer via its plugin API, so review AGPL obligations before distributing a bundled plugin or a modified OrcaSlicer.
 
