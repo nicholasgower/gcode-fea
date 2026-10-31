@@ -28,33 +28,14 @@ Nominal CAD models miss the features that determine FFF strength: inter-bead voi
 
 ## Local environment constraint
 
-Two OrcaSlicer builds are installed; no Flatpak remains.
+Pinned environment, AppImage paths, plugin-manager facts, the headless CLI entrypoint, and the Ender 3 V2 Neo reference-printer details are in `AGENTS.md` §8 and §15. Summary:
 
-**Primary plugin target:** `/home/nicholas/Applications/OrcaSlicer_Linux_AppImage_Ubuntu2404_V2.5.0-beta.AppImage`
+- **Primary plugin target:** OrcaSlicer 2.5.0-beta build `345efec6` AppImage.
+- **Secondary MCP target:** OrcaSlicer MCP 2.4.2-mcp.13 AppImage; optional, no 2.5 plugin API.
+- **Headless path:** `--appimage-extract-and-run` + `--slice` + minimal no-inherit process with `G92 E0`, wrapped by `helper_scripts/orca_slice.py`.
+- **Reference printer:** Creality Ender 3 V2 Neo; all physical coupons use its OrcaSlicer profile.
 
-- Version 2.5.0-beta build `345efec6`.
-- Plugin manager verified active in the launch log: `~/.config/OrcaSlicer/orca_plugins` was created and discovery found 0 plugins; Python 3.12.13, bundled `uv`, and the audit hook are active.
-- Config and logs: `~/.config/OrcaSlicer`.
-- Headless CLI verified: use the `--appimage-extract-and-run` flag. The `APPIMAGE_EXTRACT_AND_RUN=1` environment-variable path started GUI mode and did not pass arguments. Headless slicing works with a minimal no-inherit process containing `layer_change_gcode: "G92 E0"`; the default profile fails relative-extruder validation without it.
-- The app currently has fresh `Default Setting` / `Default Printer` / `Default Filament` profiles. Use checked-in fixtures or migrate the old Flatpak profiles.
-
-**Secondary MCP target:** `/home/nicholas/Applications/OrcaSlicer-MCP-2.4.2-mcp.13-linux-x64.AppImage`
-
-- Version 2.4.2-mcp.13; includes the Remote API required by `orcaslicer-mcp`.
-- It does not contain the 2.5 plugin API. Use it only for MCP-driven slicing/settings experiments.
-
-The 2.5 build is the only plugin target (`src/slic3r/plugin` is absent at `v2.4.2` and present at `v2.5.0-beta`). The MCP server remains optional and separate.
-
-The project-local `opencode.json` configures `orcaslicer-mcp` (`uvx orcaslicer-mcp`). It connects, but its tools return `ORCA_API_TOKEN is required` until the 2.4.2-mcp.13 AppImage is running with the Remote API enabled and the token is exported in OpenCode's environment. The stock 2.5.0-beta build does not expose the fork's Remote API, so the MCP cannot drive it.
-
-**Reference printer for physical tests:** Creality Ender 3 V2 Neo.
-
-- 220 × 220 × 250 mm build volume; 0.4 mm nozzle; 1.75 mm filament; Bowden extruder.
-- Marlin 2.0.8.3 on a 4.2.2 board; CR Touch; max nozzle 250–260 °C, bed 100 °C.
-- Practical layer height 0.1–0.4 mm; typical speed ~50 mm/s (max 120 mm/s).
-- PLA/PETG/ABS; use PLA for the paper benchmark.
-
-All physical coupons must fit the bed and use the Ender 3 V2 Neo OrcaSlicer profile. Record filament, temperatures, fan, speed, flow, and layer height for every test. The paper's Raise3D Pro2 data is a starting point, not a universal calibration.
+The 2.5 build is the only plugin target (`src/slic3r/plugin` is absent at `v2.4.2` and present at `v2.5.0-beta`). The MCP server remains optional and separate. The project-local `opencode.json` configures `orcaslicer-mcp`; it requires `ORCA_API_TOKEN` from the 2.4.2-mcp.13 fork and cannot drive the 2.5 build.
 
 ## Phase 0 — Integration spike
 
@@ -66,6 +47,7 @@ All physical coupons must fit the bed and use the Ender 3 V2 Neo OrcaSlicer prof
 - A minimal bead sweep from that data.
 - A STEP export and import into the target FEA tool.
 - A headless CLI test path (verified: `--appimage-extract-and-run`, `--slice`, minimal no-inherit process) with fixture profiles and models.
+- Helper scripts: environment doctor, headless slice wrapper, plugin sync, with unit tests.
 - A written toolchain decision: OCCT/build123d vs. gmsh vs. mesh-first.
 
 **Acceptance**
@@ -140,7 +122,7 @@ All physical coupons must fit the bed and use the Ender 3 V2 Neo OrcaSlicer prof
 
 **Coupons**
 
-- 20 × 20 × 20 mm cube at 100% rectilinear infill (better mass signal than a 10 mm cube).
+- 20 × 20 × 20 mm cube at 100% rectilinear infill (the checked-in 10 mm cube is a smoke test only).
 - Thin-wall box (one or two perimeters).
 - Overhang/bridge test.
 - Cross-section coupon (single wall / 100% infill) for bead width, height, and contact lengths.
@@ -290,6 +272,7 @@ All physical coupons must fit the bed and use the Ender 3 V2 Neo OrcaSlicer prof
 | Default profile relative-E validation | headless slice fails | minimal no-inherit process with `layer_change_gcode: "G92 E0"` |
 | 2.4.2 bundles not loaded by 2.5 | preset resolution fails | self-contained process fixtures; 2.5 bundles or datadir |
 | Fresh 2.5 profiles | test setup friction | checked-in fixtures; migrate old profiles |
+| Fixture inherits active default profile | non-reproducible slices | check in machine/filament fixtures; pin process keys |
 | Ender 3 V2 Neo variability | geometry mismatch | controlled profile; n≥3; record filament/settings |
 | Measurement uncertainty | false conclusions | calibrated tools; SOP; report uncertainty |
 | Overhang/bridge droop | model error | quantify with coupons; flag/refine |

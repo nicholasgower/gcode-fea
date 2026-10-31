@@ -1,0 +1,10 @@
+out/
+*.log
+00000.log
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
+squashfs-root/
+*.AppImage

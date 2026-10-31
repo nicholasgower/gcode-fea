@@ -33,9 +33,11 @@ Planned:
 src/gcode_fea/               # core library: bead model, cross-sections, contacts, export
 src/gcode_fea/orca/          # thin OrcaSlicer plugin adapter
 src/gcode_fea/solvers/       # Abaqus/CalculiX templates and element-deletion helpers
+helper_scripts/              # env doctor, headless slice wrapper, plugin sync
 tests/                       # unit, integration, benchmark, regression
 tests/fixtures/profiles/     # machine/process/filament JSON for headless 2.5 CLI
 tests/fixtures/models/       # cube, thin wall, overhang, multi-material
+tests/fixtures/plugin_dummy/ # minimal plugin fixture for sync-helper tests
 tests/fixtures/slices/       # serialized bead caches for core-only tests
 docs/                        # design notes, schema, validation reports
 examples/                    # small G-code/slice fixtures and expected outputs
@@ -153,7 +155,7 @@ As of the 2.5-era plugin API (verify against the pinned OrcaSlicer version):
 
 - Version 2.4.2-mcp.13; includes the Remote API required by `orcaslicer-mcp`.
 - It does not contain the 2.5 Python plugin API. Use it only for MCP-driven slicing/settings experiments.
-- `--help` and `--info` were verified with `APPIMAGE_EXTRACT_AND_RUN=1`.
+- `--help` and `--info` were verified with `APPIMAGE_EXTRACT_AND_RUN=1` for this 2.4.2 build only; do not generalize that form to 2.5.
 
 **MCP tooling.** The project-local `opencode.json` configures the `orcaslicer` MCP server (`uvx orcaslicer-mcp`). It connects, but its tools require the 2.4.2-mcp.13 fork's Remote API token. Launch that AppImage, enable **Preferences → Remote API**, copy the token, and set `ORCA_API_TOKEN` in the environment that launches OpenCode. `ORCA_API_URL` defaults to `http://127.0.0.1:13130`. The stock 2.5.0-beta build does not expose the fork's Remote API, so the MCP server cannot drive it; the plugin does not depend on the MCP.
 
@@ -167,7 +169,7 @@ As of the 2.5-era plugin API (verify against the pinned OrcaSlicer version):
 
 All physical validation coupons must fit this bed, use the Ender 3 V2 Neo OrcaSlicer profile, and be sliced for Marlin. Record the exact filament, nozzle, temperatures, fan, speed, flow, and layer height with every test. Check the machine/process/filament profiles into `tests/fixtures/profiles/` when the physical test campaign starts. Do not use a generic printer profile for physical validation. The paper used a Raise3D Pro2 (0.4 mm, 0.2 mm layers, PLA, 200/60 °C, 30 mm/s), so its `c_h`/`c_v` and material data are starting points, not universal constants.
 
-Plugin API facts for the pinned build:
+Plugin API facts for the pinned build (upstream documentation; no plugin hook has run in this environment yet — only plugin-manager startup has been observed):
 
 - Plugins are Python packages (`.py` with PEP 723 metadata, or `.whl`) registering capabilities.
 - Available capability bases: script, pages, slicing-pipeline, printer-agent, resource-texture. A first-class `Exporter` type is reserved but not implemented.
@@ -318,17 +320,25 @@ Don't:
 
 ## 15. Commands
 
-Project commands are targets; update them when the project skeleton exists. The OrcaSlicer 2.5 headless commands below are verified.
+Project commands are targets; update them when the project skeleton exists. The OrcaSlicer 2.5 helper commands below are verified.
 
-Local OrcaSlicer 2.5 headless commands (verified 2026-10-31):
+Canonical OrcaSlicer 2.5 headless path (verified 2026-10-31):
 
 ```bash
-# CLI help
-/home/nicholas/Applications/OrcaSlicer_Linux_AppImage_Ubuntu2404_V2.5.0-beta.AppImage \
-  --appimage-extract-and-run --help
+python3 helper_scripts/orca_env.py --json
+python3 helper_scripts/orca_slice.py --dry-run
+python3 helper_scripts/orca_slice.py --out out --verify
+python3 helper_scripts/orca_plugin_sync.py --dry-run --src tests/fixtures/plugin_dummy --name dummy
+python3 -m unittest discover -s tests -p "test_*.py" -v
+```
 
-# Slice a test cube with the default machine/filament and a minimal process override
-mkdir -p out
+`orca_slice.py` always passes `--appimage-extract-and-run`, `--slice 0`, `--outputdir`, and `--logfile`, and removes any inherited `APPIMAGE_EXTRACT_AND_RUN`. It renames the single generated G-code to the model stem. Expected artifacts: `out/cube.gcode`, `out/orca.log`, `out/result.json`.
+
+`tests/fixtures/models/cube.stl` is a 10 mm smoke-test cube. Phase 2b's physical coupons use a 20 mm cube.
+
+Raw command (for debugging only; the helper is canonical):
+
+```bash
 /home/nicholas/Applications/OrcaSlicer_Linux_AppImage_Ubuntu2404_V2.5.0-beta.AppImage \
   --appimage-extract-and-run \
   --slice 0 --outputdir out --logfile out/orca.log \
