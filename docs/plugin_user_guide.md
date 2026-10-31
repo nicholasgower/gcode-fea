@@ -111,7 +111,8 @@ JSON. Defaults:
   "cache_path": "",
   "output_dir": "",
   "gcode_path": "",
-  "ask_output_dir": true
+  "ask_output_dir": true,
+  "trim_overlaps": false
 }
 ```
 
@@ -132,6 +133,7 @@ JSON. Defaults:
 | `core_path` | `src` directory for the single-file install |
 | `cache_path`, `output_dir`, `gcode_path` | overrides; blank means plugin storage |
 | `ask_output_dir` | ask for an output folder in the native file dialog |
+| `trim_overlaps` | clip infill bead ends at wall footprints (viewing; changes volume) |
 
 The capture capability has its own config: `mode`, `c_h`, `c_v`,
 `max_layers`, `cache_path`.
@@ -150,7 +152,8 @@ The capture capability has its own config: `mode`, `c_h`, `c_v`,
   "cache_path": "",
   "output_dir": "",
   "save_path": "",
-  "ask_save_path": true
+  "ask_save_path": true,
+  "trim_overlaps": true
 }
 ```
 
@@ -193,6 +196,20 @@ The 20 mm cube (390 beads) has about 427k faces with no simplification,
 `layer_range` for large parts; the plugin refuses exports above
 `max_step_faces` (default 150,000). For the highest-quality analytic B-rep,
 install gmsh and set `step_engine: "gmsh"`; `auto` picks it when available.
+
+### Trimming stroke overlaps
+
+Slicers over-extrude where infill meets a wall, so the infill centerline can
+end inside the wall footprint and the bead cuts through the wall's side face.
+With `trim_overlaps: true`, the plugin buffers the wall centerlines in each
+layer and clips non-wall paths against that footprint, stopping them at the
+wall surface plus half the infill width. A multi-pass serpentine is split into
+separate beads rather than losing passes.
+
+This removes the interpenetration but keeps beads as separate bodies; it is not
+a boolean union. It changes the deposited volume (and the report/sidecar records
+the change), so it is **on by default only for the STEP viewing export** and
+off for the FEA export. It requires Shapely, which the plugin wheel installs.
 
 ## Choosing the save location
 
@@ -267,6 +284,7 @@ requested, and starts no threads.
 | STEP preflight refused | face count exceeds `max_step_faces` | set an ROI/layer range, increase `step_stride`, or raise the limit |
 | STEP import is slow | flat-faceted planar file is large | use ROI/layer range and `step_stride` 2–4 |
 | No save dialog appears | `zenity`/`kdialog` missing, or process permission denied | install a helper, accept the process prompt, or set `ask_save_path: false` / `ask_output_dir: false` |
+| `trim_overlaps requires Shapely` | CLI/core environment lacks Shapely | install `shapely>=2.0`, use the plugin wheel, or disable `trim_overlaps` |
 | Save dialog appears every run | `ask_save_path`/`ask_output_dir` true | disable in Config for a fixed path |
 | Cache stale | probe changed after capture | slice again |
 | PermissionError / audit block | prompt answered No | reinstall or edit `.install_state.json` permissions, then reload |
@@ -299,6 +317,7 @@ Logs: `~/.config/OrcaSlicer/log/python_*.log` (tracebacks) and
 | Planar STEP from the plugin | Pass (unit test; no gmsh needed) |
 | “Export STEP (viewable)” capability | Pass (unit test; writes `beads.step`) |
 | Native save/folder dialog integration | Unit-tested for zenity, kdialog, osascript, PowerShell; live zenity not exercised in this session |
+| Wall-overlap trimming | Pass (synthetic wall/infill, Phase 0 probe: 27 split pieces, −10.8% volume) |
 | `psGCodePostProcess` capture | Not dispatched in this build; explicit `gcode_path` used instead |
 | End-to-end on Windows/macOS | Not tested |
 
