@@ -238,10 +238,12 @@ location by a fixed `sh`/`cmd` helper. That avoids per-file write prompts and
 the `open ... without permission` error when you pick a directory outside
 OrcaSlicer's data folder.
 
-The first save/folder dialog and the first copy ask for process permission once;
-accept them. After that the commands are identical and the grants are reused.
-If you cancel a dialog, the export is skipped. If no dialog helper is installed,
-the plugin falls back to the configured path and says so.
+At plugin load, OrcaSlicer asks once for the fixed dialog and copy commands.
+Accept that combined prompt; exports then run without further process prompts
+for the default path/name. A custom `save_path` with a different file name can
+still trigger one prompt because the dialog command changes. If you cancel a
+dialog, the export is skipped. If no dialog helper is installed, the plugin
+falls back to the configured path and says so.
 
 Using the system helper rather than `tkinter`/Qt is intentional: OrcaSlicer's
 plugin rules forbid a second GUI toolkit on the UI thread.
