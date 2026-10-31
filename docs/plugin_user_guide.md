@@ -14,6 +14,7 @@ The plugin exposes two capabilities:
 |---|---|---|
 | Capture Slice Cache | slicing pipeline | at `posSimplifyPath`, serializes every bead of the live slice into the core cache |
 | Export FEA Geometry | script | reads that cache and writes sidecar, report, optional STL/STEP, contacts, interfaces, and process-informed bond quality |
+| Export STEP (viewable) | script | reads the same cache and writes only a viewable planar STEP file, with a face/size preflight |
 
 All geometry and export logic lives in the MIT-licensed `gcode_fea` core. The
 adapter only captures, configures, reports, and shows progress.
@@ -40,7 +41,8 @@ Activate it with `.install_state.json` or the Plugins window:
 {
   "capabilities": [
     {"Capture Slice Cache": true},
-    {"Export FEA Geometry": true}
+    {"Export FEA Geometry": true},
+    {"Export STEP (viewable)": true}
   ],
   "enabled": true,
   "installed_from": "local",
@@ -73,7 +75,8 @@ wheel, the core is not bundled and `gcode-fea` must be importable.
    - `plugin_data/<plugin_key>/cache/slice.json` — the core cache,
    - `cache/slice_probe.json` — the raw probe payload and staleness fingerprint.
 3. Open the **Plugins** window (File → Plugins) or press **Space** and run
-   **Export FEA Geometry**.
+   **Export FEA Geometry**, or run **Export STEP (viewable)** for a quick
+   viewing file.
 4. Outputs go to `plugin_data/<plugin_key>/exports/`:
    - `beads.json` — sidecar with beads, contacts, interfaces, and process data
      when a G-code path is configured,
@@ -95,6 +98,8 @@ JSON. Defaults:
   "c_v": 0.225,
   "resolution": 0.1,
   "step_stride": 1,
+  "step_engine": "auto",
+  "max_step_faces": 150000,
   "roi": null,
   "layer_range": null,
   "formats": ["sidecar", "report"],
@@ -114,6 +119,8 @@ JSON. Defaults:
 | `c_h`, `c_v` | octagon contact fractions (paper modes) |
 | `resolution` | contact grid and voxel resolution (mm); 0.05–0.2 is practical |
 | `step_stride` | keep every Nth profile point in STEP; 1 = full |
+| `step_engine` | `auto`, `gmsh`, or `planar`; `auto` uses gmsh if importable, otherwise the built-in writer |
+| `max_step_faces` | preflight limit that stops an oversized STEP export |
 | `roi` | `[xmin, ymin, zmin, xmax, ymax, zmax]` or `null` |
 | `layer_range` | `[first, last]` or `null` |
 | `formats` | subset of `["sidecar", "report"]` |
@@ -125,6 +132,25 @@ JSON. Defaults:
 The capture capability has its own config: `mode`, `c_h`, `c_v`,
 `max_layers`, `cache_path`.
 
+**Export STEP (viewable)** has a smaller config aimed at viewing:
+
+```json
+{
+  "step_stride": 2,
+  "step_engine": "planar",
+  "max_step_faces": 150000,
+  "roi": null,
+  "layer_range": null,
+  "core_path": "",
+  "cache_path": "",
+  "output_dir": ""
+}
+```
+
+It writes `exports/beads.step`. Defaults use the built-in planar writer, stride
+2, and the 150k-face preflight. Set `roi` or `layer_range` to keep a large part
+small; raise `max_step_faces` only if you accept the file size.
+
 ## Cache management and staleness
 
 - Capture writes `slice_probe.json` and stores its SHA-256 in the cache meta.
@@ -133,6 +159,28 @@ The capture capability has its own config: `mode`, `c_h`, `c_v`,
 - Deleting `cache/slice.json` forces a fresh capture.
 - `max_layers` caps large slices; the cache meta records `truncated`.
 - The cache schema is shared with the CLI (`gcode-fea --cache ...`).
+
+## STEP viewing
+
+`write_step: true` now works without gmsh. The built-in `planar` engine writes
+an AP214 `MANIFOLD_SOLID_BREP` with one closed solid per straight segment prism,
+so OCCT, FreeCAD, PrePoMax, and other STEP viewers open it. Each prism is
+flat-faceted: this is a viewing/geometry exchange format, not an analytic swept
+surface.
+
+Measured on the Phase 0 probe (3 beads, 61 prisms):
+
+| `step_stride` | Faces | File size | Volume error |
+|---:|---:|---:|---:|
+| 1 | 3,172 | 4.1 MB | 0.05% |
+| 2 | 1,647 | 2.1 MB | 2.0% |
+| 4 | 915 | 1.1 MB | 7.0% |
+
+Full parts get large: the 20 mm cube (390 beads, 8,524 prisms) is about
+230k faces and 307 MB at stride 2. Use `roi` and/or `layer_range` for STEP
+exports; the plugin refuses exports above `max_step_faces` (default 150,000).
+For the highest-quality analytic B-rep, install gmsh and set
+`step_engine: "gmsh"`; `auto` picks it when available.
 
 ## Process data
 
@@ -173,7 +221,9 @@ The plugin makes no network calls and starts no processes or threads.
 | `No slice cache yet` | export run before a capture | slice once; check the pipeline capability is enabled |
 | `core is not importable` | single-file install without the core | install the wheel, or set `core_path` to the repo `src` |
 | Export freezes the UI | script capabilities run on the UI thread | use ROI/layer range; STEP on large models is slow |
-| STL/STEP missing | `write_stl`/`write_step` false, or gmsh unavailable | enable the flags; STEP needs gmsh in the plugin environment |
+| STL/STEP missing | `write_stl`/`write_step` false | enable the flags |
+| STEP preflight refused | face count exceeds `max_step_faces` | set an ROI/layer range, increase `step_stride`, or raise the limit |
+| STEP import is slow | flat-faceted planar file is large | use ROI/layer range and `step_stride` 2–4 |
 | Cache stale | probe changed after capture | slice again |
 | PermissionError / audit block | prompt answered No | reinstall or edit `.install_state.json` permissions, then reload |
 | No process data | `gcode_path` empty or seam not dispatched | export G-code and set `gcode_path` |
@@ -199,12 +249,16 @@ Logs: `~/.config/OrcaSlicer/log/python_*.log` (tracebacks) and
 | Capture at `posSimplifyPath` | Pass (390 beads, 100 layers) |
 | Script export from the Plugins/Speed Dial | Pass (sidecar + report) |
 | Permissions declared once | Pass (combined load prompt; first-capture `open` prompts) |
+| Planar STEP output read by OCCT/gmsh | Pass (61 solids, correct volume, bbox) |
+| Planar STEP from the plugin | Pass (unit test; no gmsh needed) |
+| “Export STEP (viewable)” capability | Pass (unit test; writes `beads.step`) |
 | `psGCodePostProcess` capture | Not dispatched in this build; explicit `gcode_path` used instead |
 | End-to-end on Windows/macOS | Not tested |
 
 ## Limitations
 
 - The export runs on the UI thread; very large ROI/STEP exports block the app.
+- Planar STEP files are flat-faceted and can be large; use ROI/layer range.
 - There is no Pages tab or docked panel yet.
 - The cache stores one object per slice; multi-plate/multi-object aggregation is
   future work.

@@ -105,6 +105,12 @@ Phase 0 probe, 61 segment prisms:
 STEP uses a polygonal profile, not smooth arc surfaces. Full-part STEP is not
 practical; use ROI and/or a coarser stride with a volume-error check.
 
+Since Phase 5 a pure-Python `planar` engine can also write STEP without gmsh
+(`--step-engine planar`). It emits one AP214 `MANIFOLD_SOLID_BREP` per segment
+prism with planar faces. On the Phase 0 probe it produces 61 solids at 4.1 MB
+(stride 1, volume error `5.1e-4`) or 2.1 MB at stride 2 (`2.0%`); the 20 mm cube
+is about 307 MB at stride 2, so ROI/layer range remain essential.
+
 ## Acceptance checklist
 
 - [x] Real 20 mm cube processed (390 beads, 100 layers).

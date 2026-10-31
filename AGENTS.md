@@ -15,7 +15,7 @@ The output is not the nominal CAD surface. It is the geometry the printer actual
 
 ## 2. Status
 
-Phase 0 integration spike, Phase 1 core geometry MVP, Phase 2 benchmark tooling, Phase 3 cohesive-interface tooling, Phase 4 process-informed adhesion tooling, and Phase 5 plugin UX/packaging are complete (2026-10-31). The core ingests probes or caches, solves cross-sections, builds bead meshes, detects contacts, filters ROI, and writes sidecar/report/STL/STEP. Phase 2 adds analytic paper coupons, a voxel hex8 mesh, Abaqus/CalculiX input writers, element deletion/localization, and the paper comparison harness. Phase 3 adds cohesive cards/laws, contact-area-corrected interface extraction, mesh splitting with zero-thickness COH3D8 elements, and an Abaqus cohesive deck. Phase 4 adds G-code process parsing, per-bead process records, a lumped Arrhenius bond-quality model, per-interface `bond_quality` in the sidecar, and an uncertainty envelope. Phase 5 adds a wheel/single-file plugin with a capture capability at `posSimplifyPath` and an "Export FEA Geometry" script, config, progress/cancel, cache staleness, permissions, and a user guide; the GUI flow was smoke-tested on build `345efec6`. The benchmark and cohesive solves need an external FE solver; calibration and physical validation are pending. See `docs/phase0_report.md`, `docs/phase1_report.md`, `docs/paper_benchmark.md`, `docs/cohesive_interfaces.md`, `docs/process_adhesion.md`, and `docs/plugin_user_guide.md`. This document records the modeling assumptions, integration facts, and engineering rules that the implementation must follow. The phased plan is in `ROADMAP.md`.
+Phase 0 integration spike, Phase 1 core geometry MVP, Phase 2 benchmark tooling, Phase 3 cohesive-interface tooling, Phase 4 process-informed adhesion tooling, and Phase 5 plugin UX/packaging are complete (2026-10-31). The core ingests probes or caches, solves cross-sections, builds bead meshes, detects contacts, filters ROI, and writes sidecar/report/STL/STEP. Phase 2 adds analytic paper coupons, a voxel hex8 mesh, Abaqus/CalculiX input writers, element deletion/localization, and the paper comparison harness. Phase 3 adds cohesive cards/laws, contact-area-corrected interface extraction, mesh splitting with zero-thickness COH3D8 elements, and an Abaqus cohesive deck. Phase 4 adds G-code process parsing, per-bead process records, a lumped Arrhenius bond-quality model, per-interface `bond_quality` in the sidecar, and an uncertainty envelope. Phase 5 adds a wheel/single-file plugin with a capture capability at `posSimplifyPath`, "Export FEA Geometry" and "Export STEP (viewable)" scripts, config, progress/cancel, cache staleness, permissions, a portable planar STEP writer, and a user guide; the GUI flow was smoke-tested on build `345efec6`. The benchmark and cohesive solves need an external FE solver; calibration and physical validation are pending. See `docs/phase0_report.md`, `docs/phase1_report.md`, `docs/paper_benchmark.md`, `docs/cohesive_interfaces.md`, `docs/process_adhesion.md`, and `docs/plugin_user_guide.md`. This document records the modeling assumptions, integration facts, and engineering rules that the implementation must follow. The phased plan is in `ROADMAP.md`.
 
 Open decisions are tracked in `ROADMAP.md`; do not silently resolve them in code.
 
@@ -32,6 +32,7 @@ src/gcode_fea/process.py     # G-code process parsing and per-bead records
 src/gcode_fea/adhesion.py    # bond-quality model and uncertainty
 src/gcode_fea/config.py      # plugin config schema and cache staleness
 src/gcode_fea/plugin_export.py  # headless plugin export worker
+src/gcode_fea/step_planar.py # pure-Python planar B-rep STEP writer
 plugins/phase0_probe/        # Phase 0/Phase 1 slicing-pipeline probe
 plugins/gcode_fea/           # OrcaSlicer adapter: capture + export capabilities
 helper_scripts/              # env doctor, slice wrapper, plugin sync/wheel, Phase 0 bead builder
@@ -314,6 +315,7 @@ Default to region of interest for bead-resolved exports. Full-part bead B-rep is
 - Phase 3 defaults: contact-model interface areas (never raw voxel faces), intralayer area scaled by the flat-side fraction when available, zero-thickness COH3D8 with constitutive thickness 1.0, Abaqus as the only end-to-end cohesive target, and cohesive cards flagged `calibrated=false` until measured.
 - Phase 4 defaults: process data from G-code (the plugin graph has none), plate-offset auto-alignment, two-time lumped cooling plus Arrhenius healing, `bond_quality` scaling strength and toughness, and an uncertainty envelope. Never present bond quality or the adhesion model as calibrated.
 - Phase 5 defaults: wheel bundles the core; script export runs on the UI thread with progress checkpoints; cache capture at `posSimplifyPath`; stale detection from `source_hash`; writes default to plugin storage. The wheel's preset reference is `<wheel-stem>;;<capability>`, so it includes the version.
+- STEP exports default to `step_engine=auto`: gmsh/OCCT when importable, otherwise the pure-Python planar B-rep writer. Planar files are flat-faceted and large; use ROI/layer range and `step_stride`, and respect `max_step_faces` (default 150k).
 - License: MIT for original project code (`LICENSE`); preserve `CREDITS.md`. The paper is CC BY 4.0; OrcaSlicer and the MaxEllis fork are AGPL-3.0. Do not copy AGPL code into the MIT core; review combined-work obligations before distributing a bundled plugin or modified OrcaSlicer. The Python project declares `license = { text = "MIT" }` in `pyproject.toml`.
 - Style: Python 3.12+, type hints, `ruff`/`black` (or the project's chosen formatter), `pytest`. Keep the core free of GUI and OrcaSlicer imports.
 
@@ -366,6 +368,7 @@ Don't:
 - Don't present `INITIAL_PLA_COHESIVE` as measured or calibrated, and don't use raw voxel face areas as cohesive areas.
 - Don't present the Phase 4 bond-quality model as predictive or calibrated, and don't hide its parameter uncertainty.
 - Don't run heavy export work without progress checkpoints, and don't claim a plugin flow works on a build until it has been exercised in that build.
+- Don't emit an unbounded STEP export from the plugin; use the face preflight and document the file-size/ROI trade-off.
 
 ## 15. Commands
 
@@ -519,6 +522,16 @@ Observed on this build: the wheel is discovered and loaded, capture writes
 reference must be the wheel stem (`gcode_fea_orca-0.1.0-py3-none-any;;Capture Slice Cache`).
 The `psGCodePostProcess` seam was not dispatched during G-code export, so set
 `gcode_path` explicitly for process-informed interfaces.
+
+Portable STEP without gmsh (verified with OCCT/gmsh reading 61 solids and the
+correct volume):
+
+```bash
+uv run python -m gcode_fea.cli \
+  --probe tests/fixtures/phase0/phase0_probe_obj102.json \
+  --out out/step-planar --step out/step-planar/beads.step \
+  --step-engine planar --step-stride 2
+```
 
 `tests/fixtures/profiles/process_gcode_fea.json` is the capture-enabled process
 preset.

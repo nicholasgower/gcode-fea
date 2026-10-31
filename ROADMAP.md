@@ -233,11 +233,11 @@ The 2.5 build is the only plugin target (`src/slic3r/plugin` is absent at `v2.4.
 
 **Goal:** a usable OrcaSlicer experience.
 
-**Status (2026-10-31): complete for the Linux 2.5.0-beta build.** Wheel and single-file installs, capture + export capabilities, config, progress/cancel, cache staleness, permissions, and the user guide are implemented. A GUI smoke test on build `345efec6` loaded the wheel, captured 390 beads/100 layers, and exported the sidecar/report without a terminal. The Pages tab is not implemented. See `docs/plugin_user_guide.md`.
+**Status (2026-10-31): complete for the Linux 2.5.0-beta build.** Wheel and single-file installs, capture + export capabilities, config, progress/cancel, cache staleness, permissions, a portable planar STEP writer, and the user guide are implemented. A GUI smoke test on build `345efec6` loaded the wheel, captured 390 beads/100 layers, and exported the sidecar/report without a terminal. The Pages tab is not implemented. See `docs/plugin_user_guide.md`.
 
 **Deliverables**
 
-- Script capability: "Export FEA Geometry" with a dialog and progress. **Done**, with a progress dialog and cancel.
+- Script capabilities: "Export FEA Geometry" (sidecar/report/STL/STEP) and "Export STEP (viewable)" (cache-only STEP), both with progress and cancel. **Done.** STEP works without gmsh via the planar B-rep writer.
 - Pages tab (optional): slice status, export history, report viewer. **Not done**; plugin storage and the report JSON cover status.
 - Config: defaults, ROI, modes, output formats, solver. **Done**; solver choice is covered by the benchmark/cohesive CLIs, not the plugin.
 - Cache management and stale-slice detection. **Done** via `slice_hash` and `source_hash`.
@@ -344,6 +344,7 @@ The 2.5 build is the only plugin target (`src/slic3r/plugin` is absent at `v2.4.
 | Wheel key includes version | preset references break on upgrade | document the reference; re-point presets after bumps |
 | UI-thread export | freeze on large STEP | ROI/layer range; document; move to a worker later |
 | `psGCodePostProcess` not dispatched | no automatic process data | explicit `gcode_path`; revisit on newer builds |
+| Planar STEP size | hundreds of MB for full parts | ROI/layer range; `step_stride`; `max_step_faces` preflight |
 | Audit prompts outside `~/.config/OrcaSlicer` | export friction | plugin storage; G-code folder; declare permissions |
 | Two-build divergence (2.5 plugin vs 2.4.2 MCP) | confusion | pin builds; document roles; no plugin dependency on MCP |
 

@@ -3,7 +3,7 @@
 This directory contains the OrcaSlicer adapter. It captures the live sliced bead
 graph and exports FEA geometry through the `gcode_fea` core.
 
-- `gcode_fea_plugin.py` — the single-file plugin (two capabilities).
+- `gcode_fea_plugin.py` — the single-file plugin (capture + two export capabilities).
 - Install with the self-contained wheel:
 
   ```bash
