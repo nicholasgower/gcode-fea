@@ -26,6 +26,7 @@ class PluginConfig:
     step_engine: str = "auto"
     step_tolerance: float = 0.0
     max_step_faces: int = 150_000
+    max_step_triangles: int = 60_000
     max_layers: int = 200
     roi: tuple[float, float, float, float, float, float] | None = None
     layer_range: tuple[int, int] | None = None
@@ -56,10 +57,14 @@ class PluginConfig:
             raise ValueError("resolution must be positive")
         if self.step_stride < 1:
             raise ValueError("step_stride must be at least 1")
-        if self.step_engine not in ("auto", "gmsh", "planar"):
-            raise ValueError("step_engine must be 'auto', 'gmsh', or 'planar'")
+        if self.step_engine not in ("auto", "gmsh", "planar", "merged"):
+            raise ValueError(
+                "step_engine must be 'auto', 'gmsh', 'planar', or 'merged'"
+            )
         if self.max_step_faces < 1:
             raise ValueError("max_step_faces must be positive")
+        if self.max_step_triangles < 1:
+            raise ValueError("max_step_triangles must be positive")
         if self.step_tolerance < 0:
             raise ValueError("step_tolerance must not be negative")
         if self.max_layers < 1:

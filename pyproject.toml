@@ -9,6 +9,7 @@ dependencies = ["numpy>=1.26"]
 [project.optional-dependencies]
 step = ["gmsh>=4.15"]
 trim = ["shapely>=2.0"]
+merged = ["manifold3d>=3.5"]
 dev = ["pytest>=8"]
 
 [project.scripts]

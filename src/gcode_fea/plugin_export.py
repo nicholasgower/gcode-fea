@@ -130,17 +130,18 @@ def export_from_cache(
         files["stl"] = str(write_stl_model(model, out / "beads.stl"))
 
     if config.write_step:
-        from .step_planar import estimate_faces
+        if config.step_engine != "merged":
+            from .step_planar import estimate_faces
 
-        estimated = estimate_faces(
-            model, config.step_stride, config.step_tolerance
-        )
-        if estimated > config.max_step_faces:
-            raise ValueError(
-                f"STEP preflight: about {estimated:,} planar faces exceeds the "
-                f"limit of {config.max_step_faces:,}. Use an ROI, a layer range, "
-                "a larger step_stride or step_tolerance, or raise max_step_faces."
+            estimated = estimate_faces(
+                model, config.step_stride, config.step_tolerance
             )
+            if estimated > config.max_step_faces:
+                raise ValueError(
+                    f"STEP preflight: about {estimated:,} planar faces exceeds the "
+                    f"limit of {config.max_step_faces:,}. Use an ROI, a layer range, "
+                    "a larger step_stride or step_tolerance, or raise max_step_faces."
+                )
         _report(progress, 0.8, "Writing STEP (this can take a while)")
         step = export_step(
             model,
@@ -149,6 +150,7 @@ def export_from_cache(
             profile_stride=config.step_stride,
             step_engine=config.step_engine,
             step_tolerance=config.step_tolerance,
+            max_triangles=config.max_step_triangles,
         )
         files["step"] = step["path"]
 
@@ -210,18 +212,20 @@ def export_step_from_cache(
         if not model.beads:
             raise ValueError("trimming removed every bead")
 
-    from .step_planar import estimate_faces
+    estimated = 0
+    if config.step_engine != "merged":
+        from .step_planar import estimate_faces
 
-    estimated = estimate_faces(
-        model, config.step_stride, config.step_tolerance
-    )
-    if estimated > config.max_step_faces:
-        raise ValueError(
-            f"STEP preflight: about {estimated:,} planar faces exceeds the "
-            f"limit of {config.max_step_faces:,}. Use an ROI, a layer range, "
-            "a larger step_stride or step_tolerance, or raise max_step_faces."
+        estimated = estimate_faces(
+            model, config.step_stride, config.step_tolerance
         )
-    _report(progress, 0.3, f"Writing {estimated:,} planar faces")
+        if estimated > config.max_step_faces:
+            raise ValueError(
+                f"STEP preflight: about {estimated:,} planar faces exceeds the "
+                f"limit of {config.max_step_faces:,}. Use an ROI, a layer range, "
+                "a larger step_stride or step_tolerance, or raise max_step_faces."
+            )
+    _report(progress, 0.3, "Writing STEP")
     result = export_step(
         model,
         target,
@@ -239,9 +243,8 @@ def export_step_from_cache(
         "engine": result.get("engine"),
         "trim": trim_report,
         "solids": result.get("solids", result.get("segment_prisms")),
-        "faces": estimate_faces(
-            model, config.step_stride, config.step_tolerance
-        ),
+        "faces": result.get("triangles", estimated),
+        "triangles": result.get("triangles"),
         "bytes": target.stat().st_size,
         "volume": result.get("volume"),
         "volume_relative_error": result.get("volume_relative_error"),

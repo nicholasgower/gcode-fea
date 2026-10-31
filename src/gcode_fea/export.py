@@ -47,6 +47,7 @@ def export_step(
     profile_stride: int = 1,
     step_engine: str = "auto",
     step_tolerance: float = 0.0,
+    max_triangles: int = 60_000,
 ) -> dict:
     """Export beads as STEP solids.
 
@@ -54,14 +55,29 @@ def export_step(
 
     - ``gmsh``: OCCT B-rep behind gmsh, one solid per segment prism,
     - ``planar``: pure-Python AP214, one stitched solid per bead,
+    - ``merged``: Manifold3D boolean union, one solid per merged component,
     - ``auto``: gmsh when importable, otherwise planar.
 
     ``step_tolerance`` simplifies curved profile sections in both engines.
     """
 
-    if step_engine not in ("auto", "gmsh", "planar"):
-        raise ValueError("step_engine must be 'auto', 'gmsh', or 'planar'")
+    if step_engine not in ("auto", "gmsh", "planar", "merged"):
+        raise ValueError(
+            "step_engine must be 'auto', 'gmsh', 'planar', or 'merged'"
+        )
     target = Path(path)
+    if step_engine == "merged":
+        from .merged_step import write_step_merged
+
+        result = write_step_merged(
+            model,
+            target,
+            profile_stride=profile_stride,
+            tolerance=step_tolerance,
+            max_triangles=max_triangles,
+        )
+        result["segment_prisms"] = result["solids"]
+        return result
     if step_engine == "planar":
         return _export_step_planar(
             model, target, profile_stride, step_tolerance

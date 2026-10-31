@@ -69,7 +69,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--step-engine",
-        choices=("auto", "gmsh", "planar"),
+        choices=("auto", "gmsh", "planar", "merged"),
         default="auto",
         help="STEP writer: gmsh, pure-Python planar, or auto (default auto)",
     )
@@ -78,6 +78,12 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         default=0.0,
         help="simplify curved profile sections within this many mm (0 = off)",
+    )
+    parser.add_argument(
+        "--max-step-triangles",
+        type=int,
+        default=60_000,
+        help="preflight limit for the merged STEP engine",
     )
     parser.add_argument("--sidecar", type=Path, help="sidecar path (default: <out>/beads.json)")
     parser.add_argument("--report", type=Path, help="report path (default: <out>/report.json)")
@@ -166,6 +172,7 @@ def main(argv: list[str] | None = None) -> int:
                 profile_stride=args.step_stride,
                 step_engine=args.step_engine,
                 step_tolerance=args.step_tolerance,
+                max_triangles=args.max_step_triangles,
             )
         except (RuntimeError, OSError, ValueError) as exc:
             print(f"error: STEP export failed: {exc}", file=sys.stderr)

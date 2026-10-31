@@ -64,6 +64,7 @@ def build_wheel(
             "Requires-Python: >=3.12",
             "Requires-Dist: numpy>=1.26",
             "Requires-Dist: shapely>=2.0",
+            "Requires-Dist: manifold3d>=3.5",
             "Import-Name: gcode_fea_plugin",
             "",
         ]
