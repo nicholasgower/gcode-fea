@@ -13,6 +13,7 @@ dev = ["pytest>=8"]
 [project.scripts]
 gcode-fea = "gcode_fea.cli:main"
 gcode-fea-benchmark = "gcode_fea.benchmark_cli:main"
+gcode-fea-cohesive = "gcode_fea.cohesive_cli:main"
 
 [build-system]
 requires = ["hatchling"]
