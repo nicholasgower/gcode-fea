@@ -23,10 +23,11 @@ import numpy as np
 from .model import SliceModel
 from .step_planar import (
     _CONTEXT_ENTITY_COUNT,
+    _build_segment_solids,
     _header,
     _num,
     _patch_representation,
-    build_solids,
+    simplify_profile,
 )
 
 Point3 = tuple[float, float, float]
@@ -55,7 +56,18 @@ def write_step_merged(
 
     manifolds = []
     for bead in model.sorted_beads():
-        for solid in build_solids(bead, profile_stride, tolerance):
+        profile = list(bead.cross_section.profile)
+        if tolerance > 0:
+            profile = simplify_profile(profile, tolerance)
+        if profile_stride > 1:
+            profile = profile[::profile_stride]
+        if len(profile) < 3:
+            continue
+        # Use the convex per-segment prisms. The stitched/mitred bead solids
+        # can self-intersect at sharp closed-loop corners; Manifold then splits
+        # them into fragments. Segment prisms are individually valid and the
+        # boolean union removes their overlaps.
+        for solid in _build_segment_solids(bead, profile):
             manifold = _solid_to_manifold(m3, solid)
             if manifold is not None:
                 manifolds.append(manifold)
@@ -66,10 +78,11 @@ def write_step_merged(
     if simplify > 0:
         merged = merged.simplify(simplify)
     mesh = merged.to_mesh()
-    vertices, triangles = _weld(
-        np.asarray(mesh.vert_properties, dtype=float),
-        np.asarray(mesh.tri_verts, dtype=np.int64),
-    )
+    # Do not weld by coordinate: Manifold's mesh is already closed and its
+    # duplicate coordinates are seams between touching shells. Welding them
+    # creates non-manifold edges and open B-reps.
+    vertices = np.asarray(mesh.vert_properties, dtype=float)
+    triangles = np.asarray(mesh.tri_verts, dtype=np.int64)
     vertices = _inflate_degenerate(vertices, triangles)
     if triangles.size == 0:
         raise ValueError("boolean union produced no triangles")
@@ -97,6 +110,9 @@ def write_step_merged(
     target.write_text("\n".join(lines) + "\n")
 
     volume = sum(_component_volume(vertices, triangles, c) for c in components)
+    open_edges = sum(
+        _open_edge_count(triangles, component) for component in components
+    )
     analytic = model.volume
     return {
         "path": str(target),
@@ -109,6 +125,8 @@ def write_step_merged(
         "volume_relative_error": (
             abs(volume - analytic) / analytic if analytic > 0 else None
         ),
+        "closed": open_edges == 0,
+        "open_edges": open_edges,
         "merged_from_beads": len(model.beads),
     }
 
@@ -126,37 +144,6 @@ def _solid_to_manifold(m3, solid):
         return m3.Manifold(m3.Mesh(vert_properties=vertices, tri_verts=faces))
     except Exception:
         return None
-
-
-def _weld(
-    vertices: np.ndarray,
-    triangles: np.ndarray,
-    tolerance: float = 1e-6,
-) -> tuple[np.ndarray, np.ndarray]:
-    """Merge coincident vertices and drop degenerate triangles."""
-
-    mapping: dict[tuple[float, float, float], int] = {}
-    remap = np.empty(len(vertices), dtype=np.int64)
-    welded: list[tuple[float, float, float]] = []
-    for index, vertex in enumerate(vertices):
-        key = (
-            round(float(vertex[0]) / tolerance),
-            round(float(vertex[1]) / tolerance),
-            round(float(vertex[2]) / tolerance),
-        )
-        target = mapping.get(key)
-        if target is None:
-            target = len(welded)
-            mapping[key] = target
-            welded.append((float(vertex[0]), float(vertex[1]), float(vertex[2])))
-        remap[index] = target
-    remapped = remap[triangles]
-    mask = (
-        (remapped[:, 0] != remapped[:, 1])
-        & (remapped[:, 1] != remapped[:, 2])
-        & (remapped[:, 0] != remapped[:, 2])
-    )
-    return np.asarray(welded, dtype=float), remapped[mask]
 
 
 def _inflate_degenerate(
@@ -244,6 +231,21 @@ def _components(triangles: np.ndarray) -> list[list[int]]:
     for index in range(len(triangles)):
         groups.setdefault(find(index), []).append(index)
     return list(groups.values())
+
+
+def _open_edge_count(
+    triangles: np.ndarray,
+    component: list[int],
+) -> int:
+    counts: dict[tuple[int, int], int] = {}
+    for index in component:
+        triangle = triangles[index]
+        for position in range(3):
+            u = int(triangle[position])
+            v = int(triangle[(position + 1) % 3])
+            key = (u, v) if u < v else (v, u)
+            counts[key] = counts.get(key, 0) + 1
+    return sum(1 for count in counts.values() if count != 2)
 
 
 def _component_volume(

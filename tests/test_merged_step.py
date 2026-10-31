@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import re
 import sys
 import tempfile
 import unittest
@@ -41,6 +42,27 @@ class MergedStepTests(unittest.TestCase):
             self.assertIn("MANIFOLD_SOLID_BREP", text)
             self.assertIn("ADVANCED_FACE", text)
             self.assertNotIn("FACETED_BREP", text)
+
+    def test_multilayer_cube_is_one_closed_body(self) -> None:
+        cube = load_probe(
+            REPO_ROOT / "tests" / "fixtures" / "phase1" / "cube20_probe.json"
+        ).filter_roi(layer_range=(0, 1))
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "cube2.step"
+            result = write_step_merged(
+                cube,
+                target,
+                tolerance=0.005,
+                max_triangles=100_000,
+            )
+            self.assertEqual(result["solids"], 1)
+            self.assertTrue(result["closed"])
+            self.assertEqual(result["open_edges"], 0)
+            text = target.read_text()
+            self.assertEqual(
+                len(re.findall(r"= MANIFOLD_SOLID_BREP\(", text)), 1
+            )
+            self.assertEqual(len(re.findall(r"= CLOSED_SHELL\(", text)), 1)
 
     def test_export_dispatch(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
