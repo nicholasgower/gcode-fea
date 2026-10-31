@@ -34,6 +34,9 @@ src/gcode_fea/               # core library: bead model, cross-sections, contact
 src/gcode_fea/orca/          # thin OrcaSlicer plugin adapter
 src/gcode_fea/solvers/       # Abaqus/CalculiX templates and element-deletion helpers
 tests/                       # unit, integration, benchmark, regression
+tests/fixtures/profiles/     # machine/process/filament JSON for headless 2.5 CLI
+tests/fixtures/models/       # cube, thin wall, overhang, multi-material
+tests/fixtures/slices/       # serialized bead caches for core-only tests
 docs/                        # design notes, schema, validation reports
 examples/                    # small G-code/slice fixtures and expected outputs
 ```
@@ -135,7 +138,26 @@ The paper scales `E` and `σ_f` by 1.136. Do not mix that calibration with the v
 
 As of the 2.5-era plugin API (verify against the pinned OrcaSlicer version):
 
-**Verified local environment (2026-10-31).** The installed Flatpak is `com.orcaslicer.OrcaSlicer` 2.4.2 (Flathub stable, GNOME 50 runtime). Its headless CLI runs (`--help`, `--info`, `--slice`) and can slice to G-code. However, the `v2.4.2` source tag does not contain `src/slic3r/plugin`; the Python plugin API first appears in `v2.5.0-alpha`. The local Flatpak therefore cannot load the slicing-pipeline plugin. For 2.4.2, use the standalone core + G-code/CLI path. The slicing-pipeline adapter requires a 2.5.0-alpha/beta build (AppImage or source build), not the current Flathub stable.
+**Verified local environment (2026-10-31).** No OrcaSlicer Flatpak remains. Two AppImages are installed:
+
+**Primary plugin target:** `/home/nicholas/Applications/OrcaSlicer_Linux_AppImage_Ubuntu2404_V2.5.0-beta.AppImage`
+
+- Version 2.5.0-beta build `345efec6`.
+- Embedded Python 3.12.13 with a bundled `uv`.
+- Plugin manager verified active in the launch log: `~/.config/OrcaSlicer/orca_plugins` was created and discovery found 0 plugins.
+- Config and logs: `~/.config/OrcaSlicer`; plugin stderr: `~/.config/OrcaSlicer/log/python_*.log`.
+- The `--help` invocation started GUI mode, so the headless CLI entrypoint is still unverified. Try the extracted `usr/bin/orca-slicer`, a `--slice` invocation, or the 2.5.0-beta Flatpak before building the integration harness.
+- In restricted shells, use `APPIMAGE_EXTRACT_AND_RUN=1` if FUSE is unavailable.
+
+**Secondary MCP target:** `/home/nicholas/Applications/OrcaSlicer-MCP-2.4.2-mcp.13-linux-x64.AppImage`
+
+- Version 2.4.2-mcp.13; includes the Remote API required by `orcaslicer-mcp`.
+- It does not contain the 2.5 Python plugin API. Use it only for MCP-driven slicing/settings experiments.
+- `--help` and `--info` were verified with `APPIMAGE_EXTRACT_AND_RUN=1`.
+
+**MCP tooling.** The project-local `opencode.json` configures the `orcaslicer` MCP server (`uvx orcaslicer-mcp`). It connects, but its tools require the 2.4.2-mcp.13 fork's Remote API token. Launch that AppImage, enable **Preferences → Remote API**, copy the token, and set `ORCA_API_TOKEN` in the environment that launches OpenCode. `ORCA_API_URL` defaults to `http://127.0.0.1:13130`. The stock 2.5.0-beta build does not expose the fork's Remote API, so the MCP server cannot drive it; the plugin does not depend on the MCP.
+
+Plugin API facts for the pinned build:
 
 - Plugins are Python packages (`.py` with PEP 723 metadata, or `.whl`) registering capabilities.
 - Available capability bases: script, pages, slicing-pipeline, printer-agent, resource-texture. A first-class `Exporter` type is reserved but not implemented.
@@ -148,6 +170,9 @@ As of the 2.5-era plugin API (verify against the pinned OrcaSlicer version):
 - Script capabilities run on the UI thread and can read `orca.host.model()` (the mesh), but not the sliced graph.
 - `SupportLayer.support_fills` is not exposed by the current bindings.
 - Per-path speed, temperature, and fan are not exposed by `ExtrusionPath`.
+- The 2.5 audit hook allows writes under `~/.config/OrcaSlicer`; use `orca.host.plugin.storage()` for caches and the G-code folder or a user-chosen path for exports. Other paths may prompt once.
+- Install the plugin under `~/.config/OrcaSlicer/orca_plugins/<plugin>/`. The loader scans at startup; reload or restart after adding or changing a plugin.
+- Pin the 2.5.0-beta build `345efec6`; the plugin API is experimental.
 
 Architecture consequences:
 
@@ -156,6 +181,7 @@ Architecture consequences:
 3. Keep the core standalone; the plugin adapter is thin.
 4. For process-informed adhesion, parse G-code for per-path process data or add a binding to the G-code generator. Document the gap.
 5. For supports, parse G-code or add a binding for `support_fills`. Document the gap.
+6. Develop and test the plugin on the 2.5.0-beta build. The 2.4.2 MCP fork is a separate application and is not a plugin test target.
 
 Audit/permissions: the plugin runs under a permission system. Declare filesystem read/write targets and any process/thread use with `orca.request_permissions(...)`; prefer writing to the plugin's own storage or the G-code folder.
 
@@ -232,7 +258,8 @@ Default to region of interest for bead-resolved exports. Full-part bead B-rep is
 - Determinism: stable IDs, sorted iteration, no unordered-map order in outputs.
 - Errors: structured codes + human-readable messages; never silently drop a bead.
 - Performance: measure bead count, triangles, file size, and wall time. Set and update budgets in `ROADMAP.md`.
-- Tests: unit tests for cross-sections and contacts; integration tests for small slices; benchmark tests for the paper; regression tests for golden volumes/hashes.
+- Tests: unit tests for cross-sections and contacts; integration tests for small slices; plugin discovery/hook smoke tests in 2.5; benchmark tests for the paper; regression tests for golden volumes/hashes.
+- OrcaSlicer paths: config/plugins/logs under `~/.config/OrcaSlicer`; plugin target 2.5.0-beta build `345efec6`; MCP target 2.4.2-mcp.13.
 - Style: Python 3.12+, type hints, `ruff`/`black` (or the project's chosen formatter), `pytest`. Keep the core free of GUI and OrcaSlicer imports.
 
 ## 13. Validation gates
@@ -246,6 +273,8 @@ A change is not done until:
 5. **Benchmark:** the paper's 0/30/45/60/90° cases reproduce the strength trend and failure mode within the agreed tolerance.
 6. **Performance:** the ROI export meets the current budget.
 7. **Reproducibility:** the same slice + config produces the same report hash (or stable IDs and volume table).
+8. **Plugin discovery:** the 2.5 plugin manager finds the plugin (`Found 1 plugin manifest`) and the `posSimplifyPath` hook runs on pinned build `345efec6`.
+9. **Permissions:** outputs go to plugin storage or a permitted export folder; any audit prompt is expected and documented.
 
 ## 14. Agent do / don't
 
@@ -257,7 +286,8 @@ Do:
 - Make every approximation explicit in the report.
 - Keep bead and interface IDs stable and deterministic.
 - Add tests with every geometry or schema change.
-- Pin/verify the OrcaSlicer version before relying on a binding.
+- Pin/verify the OrcaSlicer version before relying on a binding: 2.5.0-beta build `345efec6` for the plugin; 2.4.2-mcp.13 fork for the MCP.
+- Test the plugin in the 2.5 app, not the 2.4.2 MCP fork.
 
 Don't:
 

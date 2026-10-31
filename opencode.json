@@ -1,0 +1,18 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "servers": {
+      "orcaslicer": {
+        "type": "local",
+        "command": [
+          "/home/nicholas/.local/bin/uvx",
+          "orcaslicer-mcp"
+        ],
+        "environment": {
+          "ORCA_API_URL": "http://127.0.0.1:13130",
+          "ORCA_API_TOKEN": "{env:ORCA_API_TOKEN}"
+        }
+      }
+    }
+  }
+}

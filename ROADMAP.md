@@ -28,12 +28,24 @@ Nominal CAD models miss the features that determine FFF strength: inter-bead voi
 
 ## Local environment constraint
 
-The installed Flatpak is OrcaSlicer 2.4.2 (Flathub stable, GNOME 50 runtime). It runs headless and slices, but it predates the Python plugin API: `src/slic3r/plugin` is absent at `v2.4.2` and first appears at `v2.5.0-alpha`. Phase 0 must either:
+Two OrcaSlicer builds are installed; no Flatpak remains.
 
-- use a 2.5.0-alpha/beta build (AppImage or source build) for the slicing-pipeline probe, or
-- prove the G-code/CLI fallback on 2.4.2 and defer the plugin adapter.
+**Primary plugin target:** `/home/nicholas/Applications/OrcaSlicer_Linux_AppImage_Ubuntu2404_V2.5.0-beta.AppImage`
 
-Verified smoke test: a 10 × 10 × 10 mm cube sliced to 50 layers at 0.2 mm layer height, 0.45 mm perimeter/infill width, 20% sparse infill, with a single-extruder Marlin profile and a `G92 E0` layer-change override. The default profile alone failed the relative-extruder validation; a valid machine/process/filament combination is required.
+- Version 2.5.0-beta build `345efec6`.
+- Plugin manager verified active in the launch log: `~/.config/OrcaSlicer/orca_plugins` was created and discovery found 0 plugins; Python 3.12.13, bundled `uv`, and the audit hook are active.
+- Config and logs: `~/.config/OrcaSlicer`.
+- Headless CLI is still unverified: `--help` started GUI mode. Resolve this before the integration harness by trying the extracted `usr/bin/orca-slicer`, a `--slice` invocation, or the 2.5.0-beta Flatpak.
+- The app currently has fresh `Default Setting` / `Default Printer` / `Default Filament` profiles. Use checked-in fixtures or migrate the old Flatpak profiles.
+
+**Secondary MCP target:** `/home/nicholas/Applications/OrcaSlicer-MCP-2.4.2-mcp.13-linux-x64.AppImage`
+
+- Version 2.4.2-mcp.13; includes the Remote API required by `orcaslicer-mcp`.
+- It does not contain the 2.5 plugin API. Use it only for MCP-driven slicing/settings experiments.
+
+The 2.5 build is the only plugin target (`src/slic3r/plugin` is absent at `v2.4.2` and present at `v2.5.0-beta`). The MCP server remains optional and separate.
+
+The project-local `opencode.json` configures `orcaslicer-mcp` (`uvx orcaslicer-mcp`). It connects, but its tools return `ORCA_API_TOKEN is required` until the 2.4.2-mcp.13 AppImage is running with the Remote API enabled and the token is exported in OpenCode's environment. The stock 2.5.0-beta build does not expose the fork's Remote API, so the MCP cannot drive it.
 
 ## Phase 0 — Integration spike
 
@@ -41,20 +53,24 @@ Verified smoke test: a 10 × 10 × 10 mm cube sliced to 50 layers at 0.2 mm laye
 
 **Deliverables**
 
-- A probe that runs at `posSimplifyPath` and dumps one layer's `ExtrusionPath` data (points, width, height, `mm3_per_mm`, role).
+- A probe plugin installed under `~/.config/OrcaSlicer/orca_plugins/` that runs at `posSimplifyPath` and dumps one layer's `ExtrusionPath` data (points, width, height, `mm3_per_mm`, role).
 - A minimal bead sweep from that data.
 - A STEP export and import into the target FEA tool.
+- A headless CLI test path (or a documented GUI-only path) with fixture profiles and models.
 - A written toolchain decision: OCCT/build123d vs. gmsh vs. mesh-first.
 
 **Acceptance**
 
+- The 2.5 plugin manager discovers the probe (`Found 1 plugin manifest`) and the hook runs on pinned build `345efec6`.
 - Bead dimensions and volume match the slicer within 0.1%.
 - The STEP imports, is watertight, and has the expected bounding box.
-- The probe runs on the pinned OrcaSlicer version without blocking slicing.
+- The probe does not block slicing; outputs land in plugin storage or a permitted export folder.
+- The headless test path is established, or the GUI-only workflow is documented.
 
 **Risks**
 
 - Plugin API churn; graph lifetime; scaled-coordinate mistakes; OCCT sweep issues.
+- The 2.5 AppImage CLI entrypoint is unverified; audit prompts may appear for outputs outside `~/.config/OrcaSlicer`; the 2.5 app has fresh profiles.
 
 ## Phase 1 — Core geometry
 
@@ -183,6 +199,7 @@ Verified smoke test: a 10 × 10 × 10 mm cube sliced to 50 layers at 0.2 mm laye
 
 - **Performance:** bead count, triangles, file size, wall time; budgets per phase.
 - **Validation:** volume, envelope, watertightness, STEP import, benchmark, regression.
+- **Plugin testing:** unit (core), integration (2.5 CLI + fixtures), plugin discovery/smoke (2.5 GUI/logs), GUI smoke (manual).
 - **Documentation:** schema, assumptions, calibration, troubleshooting.
 - **Licensing:** OrcaSlicer AGPL-3.0; OCCT LGPL; gmsh GPL; dependency audit before distribution.
 - **CI:** lint, unit tests, small integration fixtures; benchmark optional/nightly.
@@ -199,6 +216,9 @@ Verified smoke test: a 10 × 10 × 10 mm cube sliced to 50 layers at 0.2 mm laye
 | D6 | Target solver | Open | Abaqus + CalculiX templates |
 | D7 | Dependencies | Open | OCCT/build123d or gmsh; audit licenses |
 | D8 | Coordinate frame | Open | Printer frame, Z up; optional Y-up transform |
+| D9 | Plugin target | Resolved | OrcaSlicer 2.5.0-beta build `345efec6`; 2.4.2-mcp.13 fork is the secondary MCP target |
+| D10 | Headless CLI path | Open | Try extracted `usr/bin/orca-slicer`, `--slice`, or the 2.5.0-beta Flatpak |
+| D11 | MCP role | Resolved | Optional agent tooling for 2.4.2; not a plugin dependency |
 
 ## Risk register
 
@@ -215,20 +235,18 @@ Verified smoke test: a 10 × 10 × 10 mm cube sliced to 50 layers at 0.2 mm laye
 | G-code fallback data loss | wrong widths/roles | prefer graph; parse comments; warn |
 | Overhang/droop | local error | flag; no-droop assumption; future sag model |
 | Licensing | distribution blocked | audit dependencies early |
+| 2.5 AppImage CLI unverified | slow headless tests | extracted binary; `--slice`; 2.5 Flatpak |
+| Fresh 2.5 profiles | test setup friction | checked-in fixtures; migrate old profiles |
+| Audit prompts outside `~/.config/OrcaSlicer` | export friction | plugin storage; G-code folder; declare permissions |
+| Two-build divergence (2.5 plugin vs 2.4.2 MCP) | confusion | pin builds; document roles; no plugin dependency on MCP |
 
 ## Definition of done
 
-- **v0.1 (geometry):** Phase 0–1 complete; ROI STEP + sidecar + report; volume/envelope/watertight gates pass; docs and tests.
+- **v0.1 (geometry):** Phase 0–1 complete; plugin discovery/hook smoke test on 2.5.0-beta; ROI STEP + sidecar + report; volume/envelope/watertight gates pass; docs and tests.
 - **v0.2 (benchmark):** Phase 2 complete; paper comparison documented.
 - **v0.3 (adhesion):** Phase 3 complete; cohesive workflow + solver template.
 - **v1.0 (plugin):** Phase 5 complete; end-to-end OrcaSlicer UX; docs; packaging.
 
 ## References
 
-- Seibel, S., Kiendl, J. (2025). *A finite element approach for modelling the fracture behaviour of unidirectional FFF-printed parts.* Progress in Additive Manufacturing 10:6981–6992. https://doi.org/10.1007/s40964-025-01021-8. Local copy: `sources/fracture_behavior/fracture_behavior_FFF.pdf` (CC BY 4.0).
-- OrcaSlicer plugin system: https://www.orcaslicer.com/wiki/developer_reference/plugin_development/plugin_system.html
-- OrcaSlicer plugin development: https://www.orcaslicer.com/wiki/developer_reference/plugin_development/plugin_development.html
-- OrcaSlicer slicing API: https://www.orcaslicer.com/wiki/developer_reference/plugin_development/api_reference/slicing.html
-- OrcaSlicer host API: https://www.orcaslicer.com/wiki/developer_reference/plugin_development/api_reference/host.html
-- OrcaSlicer source: `src/slic3r/plugin/host/PluginHostSlicing.cpp`, `src/libslic3r/Print.cpp`, `src/libslic3r/ExtrusionEntity.hpp`, `src/libslic3r/Layer.hpp`.
-- Tooling candidates: OpenCASCADE (OCCT), build123d/cadquery, gmsh, trimesh/manifold3d, meshio.
+- Seibel, S., Kiendl, J. (2025). *A finite element approach for modelling the fracture behaviour of unidirectional FFF-printed parts.* Progress in Additive Manufacturing 10:6981–6992. https://doi.org/10.1007/s40964-025-01021-8. Local copy: `sources/fracture_behavior/fracture_behavior_FFF.pdf` (CC BY 4.
